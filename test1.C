@@ -121,7 +121,7 @@ void renderSong(const SongInfo& inf, const vector<Instrument>& instr, const vect
 		for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 			const Note& n = notes.at((*it).first);
 			const Instrument& ins = instr.at(n.instrument==0?0:(n.instrument-1));
-			tmp[j].frequencyNormalized = pow(2,n.pitchSemitones/12.)/25.;
+			tmp[j].frequencyNormalized = pow(2,n.pitchSemitones/12.);
 			tmp[j].startTimeSamples = n.start.absRow*rowSamples;
 			tmp[j].waveform = ins.sampleData.data();
 			tmp[j].waveformLength = ins.sampleData.length();
