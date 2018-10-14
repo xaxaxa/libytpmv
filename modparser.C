@@ -21,6 +21,7 @@ namespace ytpmv {
 		int curSeq;
 		int curRow;
 		int curRowAbs;
+		double bpm = 0;
 		vector<int> activeNotes;
 		vector<double> defaultVolumes;
 		vector<Note>* outNotes;
@@ -36,6 +37,8 @@ namespace ytpmv {
 	};
 	void parseModPattern(const uint8_t* patternData, int rows, PlayerState& ps) {
 		int rowBytes = ps.channels*4;
+		int ticksPerRow = 6;
+		double tickDuration = 1./50;
 		for(int row=0; row<rows; row++) {
 			const uint8_t* rowData = patternData + row*rowBytes;
 			bool shouldBreak = false;
@@ -59,6 +62,18 @@ namespace ytpmv {
 					// note off
 					ps.activeNotes.at(channel) = -1;
 					continue;
+				}
+				if((effect & 0xF00) == 0xF00) {
+					uint8_t tmp = effect&0xff;
+					if(tmp != 0) {
+						if(tmp < 0x20) {
+							ticksPerRow = effect&0xff;
+						} else {
+							tickDuration = 2.5/double(effect&0xff);
+						}
+						ps.bpm = 60./(ticksPerRow*tickDuration);
+						fprintf(stderr, "%d, %d, %x: bpm %f\n", row, channel, effect, ps.bpm);
+					}
 				}
 				if(notePeriod > 0) {
 					double frequencyNormalized = 856./double(notePeriod);
@@ -109,7 +124,7 @@ namespace ytpmv {
 		if(inLen < 1084)
 			throw runtime_error((string(".mod file must be at least 1084 bytes, but is ") + to_string(inLen) + " bytes").c_str());
 		outInf.name = getString(inData, 20);
-		outInf.bpm = 320;
+		outInf.bpm = 125*4;
 		
 		// parse samples
 		vector<double> defaultVolumes;
@@ -129,7 +144,7 @@ namespace ytpmv {
 			fineTune <<= 4;
 			fineTune >>= 4;
 			
-			ins.tuningSemitones = double(fineTune)/8.;
+			ins.tuningSemitones = double(fineTune)/8. - 41;
 			if(volume == 0) dB = 0.;
 			else dB = log10(double(volume)/64.)*10;
 			
@@ -195,10 +210,14 @@ namespace ytpmv {
 		ps.defaultVolumes = defaultVolumes;
 		for(int i=0; i<songLength; i++) {
 			int pattern = seqTable[i];
-			//printf("%d\n", pattern);
+			fprintf(stderr, "%d\n", pattern);
 			const uint8_t* patternData = inData + 1084 + patternBytes*pattern;
 			parseModPattern(patternData, patternRows, ps);
+			
+			if(i==0 && ps.bpm != 0) outInf.bpm = ps.bpm;
 		}
+		
+		
 		
 		int sampleStart = 1084+patternBytes*nPatterns;
 		
@@ -208,7 +227,7 @@ namespace ytpmv {
 		for(int i=0;i<31;i++) {
 			Instrument& ins = outInstruments[i];
 			int sampleBytes = ins.sampleData.length();
-			fprintf(stderr, "%d\n", sampleBytes);
+			//fprintf(stderr, "%d\n", sampleBytes);
 			if(sampleStart + sampleBytes > inLen)
 				throw runtime_error("eof when reading sample data");
 			
@@ -220,7 +239,7 @@ namespace ytpmv {
 			sampleStart += ins.sampleData.length();
 		}
 		
-		// extend samples to at least 8KB each
+		// extend samples to be at least 16K samples each
 		for(int i=0;i<31;i++) {
 			Instrument& ins = outInstruments[i];
 			if(ins.sampleData.length() == 0) continue;
@@ -229,7 +248,7 @@ namespace ytpmv {
 			uint16_t repIndex = getShort(instrData + 26)*2;
 			uint16_t repLen = getShort(instrData + 28)*2;
 			if(repLen == 0) continue;
-			while(ins.sampleData.length() < 1024*8) {
+			while(ins.sampleData.length() < 1024*16) {
 				ins.sampleData.append(ins.sampleData.substr(repIndex, repLen));
 			}
 		}
