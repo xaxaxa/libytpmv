@@ -148,7 +148,7 @@ namespace ytpmv {
 			if(volume == 0) dB = 0.;
 			else dB = log10(double(volume)/64.)*10;
 			
-			ins.sampleData.resize(sampleLen);
+			ins.sampleData.resize(sampleLen*CHANNELS);
 			defaultVolumes.push_back(dB);
 			outInstruments.push_back(ins);
 		}
@@ -226,17 +226,19 @@ namespace ytpmv {
 		// load samples
 		for(int i=0;i<31;i++) {
 			Instrument& ins = outInstruments[i];
-			int sampleBytes = ins.sampleData.length();
+			int samples = ins.sampleData.length()/CHANNELS;
 			//fprintf(stderr, "%d\n", sampleBytes);
-			if(sampleStart + sampleBytes > inLen)
+			if(sampleStart + samples > inLen)
 				throw runtime_error("eof when reading sample data");
 			
-			double* outData = (double*)ins.sampleData.data();
+			float* outData = const_cast<float*>(ins.sampleData.data());
 			int8_t* sampleData = (int8_t*)(inData + sampleStart);
-			for(int j=0;j<(int)ins.sampleData.length();j++)
-				outData[j] = (sampleData[j])/127.;
+			for(int j=0;j<samples;j++) {
+				for(int k=0; k<CHANNELS; k++)
+					outData[j*CHANNELS+k] = (sampleData[j])/127.;
+			}
 			
-			sampleStart += ins.sampleData.length();
+			sampleStart += samples;
 		}
 		
 		// extend samples to be at least 16K samples each
@@ -249,7 +251,7 @@ namespace ytpmv {
 			uint16_t repLen = getShort(instrData + 28)*2;
 			if(repLen == 0) continue;
 			while(ins.sampleData.length() < 1024*16) {
-				ins.sampleData.append(ins.sampleData.substr(repIndex, repLen));
+				ins.sampleData.append(ins.sampleData.substr(repIndex*CHANNELS, repLen*CHANNELS));
 			}
 		}
 	}

@@ -43,14 +43,14 @@ struct ActiveNote {
 	int startTimeSamples;
 	
 	int waveformLength;
-	const double* waveform;
+	const float* waveform;
 };
 void renderRegion(ActiveNote* notes, int noteCount, int curTimeSamples,
 					int durationSamples, int srate, int16_t* outBuf) {
 	double f = 50./srate;
 	for(int i=0;i<durationSamples;i++) {
 		int t = i + curTimeSamples;
-		double curSample = 0;
+		float curSample = 0;
 		for(int j=0;j<noteCount;j++) {
 			ActiveNote n = notes[j];
 			int relTime = t-n.startTimeSamples;
@@ -59,11 +59,11 @@ void renderRegion(ActiveNote* notes, int noteCount, int curTimeSamples,
 			if(sampleTime > n.waveformLength) continue;
 			//sampleTime = sampleTime % n.waveformLength;
 			
-			double sample = n.waveform[sampleTime];
+			float sample = n.waveform[sampleTime];
 			//double sample = sin(2*M_PI*f*n.frequencyNormalized*relTime);
 			curSample += sample*n.amplitude;
 		}
-		double tmp = curSample*256*32;
+		float tmp = curSample*256*32;
 		if(tmp > 32767) tmp = 32767;
 		if(tmp < -32767) tmp = -32767;
 		outBuf[i] = tmp;

@@ -3,5 +3,5 @@
 
 using namespace std;
 namespace ytpmv {
-	void renderAudio(const vector<AudioSegment>& segments, int srate, function<void(double* data, int len)> writeData);
+	void renderAudio(const vector<AudioSegment>& segments, int srate, function<void(float* data, int len)> writeData);
 };

@@ -46,10 +46,10 @@ int main(int argc, char** argv) {
 		Instrument& ins = instr.at(n.instrument==0?0:(n.instrument-1));
 		segments.push_back(AudioSegment(n, ins, inf.bpm));
 	}
-	renderAudio(segments,44100, [](double* data, int len) {
+	renderAudio(segments,44100, [](float* data, int len) {
 		int16_t buf[len];
 		for(int i=0;i<len;i++) {
-			double tmp = data[i]*256*32;
+			float tmp = data[i]*256*32;
 			if(tmp > 32767) tmp = 32767;
 			if(tmp < -32767) tmp = -32767;
 			buf[i] = (int16_t)tmp;

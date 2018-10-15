@@ -7,6 +7,9 @@
 using namespace std;
 
 namespace ytpmv {
+	// number of (interleaved) channels in all in-memory sample data
+	static constexpr int CHANNELS=2;
+	
 	struct Time {
 		// number of patterns full before this note
 		int seq;
@@ -54,28 +57,58 @@ namespace ytpmv {
 		string name;
 		double tuningSemitones; // add this value to all notes played with this instrument
 		int amplitudeDB; // in dB; 0 is default amplitude
-		basic_string<double> sampleData; // values should be normalized to [-1.0, 1.0]
+		basic_string<float> sampleData; // values should be normalized to [-1.0, 1.0]
 	};
-	
+	class AudioSource {
+	public:
+		string name;
+		basic_string<float> sample; // always 2 channels interleaved; values normalized to [-1.0, 1.0]
+		double tempo, pitch; // pitch & tempo correction applied to this source when played; see AudioSegment
+	};
+	class VideoSource {
+	public:
+		string name;
+		vector<string> frames;
+		double speed;
+	};
+	class Source {
+	public:
+		string name;
+		AudioSource audio;
+		VideoSource video;
+		bool hasAudio, hasVideo;
+	};
 	// a note or segment in the audio timeline; passed into AudioRenderer
 	class AudioSegment {
 	public:
 		double startSeconds, endSeconds;
 		double tempo; // linear tempo; 1 => original tempo
 		double pitch; // linear pitch; 1 => original pitch, 2 => 12 semitones up, etc
-		double amplitude;
-		const double* sampleData;
-		int sampleLength;
+		double amplitude[CHANNELS];
+		const float* sampleData;
+		int sampleLength; // number of elements in the sampleData array (not number of samples)
 		
 		AudioSegment() {}
 		AudioSegment(const Note& n, const Instrument& ins, double bpm) {
 			startSeconds = n.start.absRow*60/bpm;
 			endSeconds = n.end.absRow*60/bpm;
 			pitch = pow(2,(n.pitchSemitones + ins.tuningSemitones)/12.);
-			tempo = pitch;
-			amplitude = pow(10,n.amplitudeDB/20.);
+			if(pitch<1.) tempo = pitch;
+			else tempo = sqrt(pitch);
+			for(int k=0; k<CHANNELS; k++)
+				amplitude[k] = pow(10,n.amplitudeDB/20.);
 			sampleData = ins.sampleData.data();
 			sampleLength = ins.sampleData.length();
+		}
+		AudioSegment(const Note& n, const AudioSource& src, double bpm) {
+			startSeconds = n.start.absRow*60/bpm;
+			endSeconds = n.end.absRow*60/bpm;
+			pitch = pow(2,n.pitchSemitones/12.) * src.pitch;
+			tempo = 1.;
+			for(int k=0; k<CHANNELS; k++)
+				amplitude[k] = pow(10,n.amplitudeDB/20.);
+			sampleData = src.sample.data();
+			sampleLength = src.sample.length();
 		}
 		double durationSeconds() const {
 			return endSeconds - startSeconds;
