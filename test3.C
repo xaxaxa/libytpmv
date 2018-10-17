@@ -16,17 +16,6 @@
 using namespace std;
 using namespace ytpmv;
 
-std::string get_file_contents(const char *filename) {
-	std::ifstream in(filename, std::ios::in | std::ios::binary);
-	if(in) {
-		std::ostringstream contents;
-		contents << in.rdbuf();
-		in.close();
-		return(contents.str());
-	}
-	throw(errno);
-}
-
 map<string, Source> sources;
 void addSource(string name, string audioFile, string videoFile,
 				double audioPitch=1., double audioTempo=1., double videoSpeed=1.) {
