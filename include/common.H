@@ -67,10 +67,16 @@ namespace ytpmv {
 		basic_string<float> sample; // always 2 channels interleaved; values normalized to [-1.0, 1.0]
 		double tempo, pitch; // pitch & tempo correction applied to this source when played; see AudioSegment
 	};
+	
+	struct Image {
+		int w,h;
+		// all images are in RGBA32 format (32bpp)
+		string data;
+	};
 	class VideoSource {
 	public:
 		string name;
-		vector<string> frames;
+		vector<Image> frames;
 		double speed;
 	};
 	class Source {
