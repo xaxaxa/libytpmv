@@ -46,7 +46,7 @@ void renderRegion(ActiveNote* notes, int noteCount, int curTimeSamples,
 			int relTime = t-n.startTimeSamples;
 			int sampleTime = relTime*n.frequencyNormalized;
 			if(sampleTime<0) continue;
-			if(sampleTime > n.waveformLength) continue;
+			if(sampleTime >= n.waveformLength) continue;
 			//sampleTime = sampleTime % n.waveformLength;
 			
 			float sample = n.waveform[sampleTime];

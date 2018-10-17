@@ -36,7 +36,7 @@ namespace ytpmv {
 				int relTimeLeft = n.endTimeSamples-t;
 				int sampleTime = relTime*n.speed;
 				if(sampleTime<0) continue;
-				if(sampleTime > n.waveformLength/CHANNELS) continue;
+				if(sampleTime >= n.waveformLength/CHANNELS) continue;
 				//sampleTime = sampleTime % n.waveformLength;
 				
 				for(int k=0; k<CHANNELS; k++) {
