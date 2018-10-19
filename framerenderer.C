@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <GL/glew.h>
-//#include <GLFW/glfw3.h>
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <vector>
 #include <string>
@@ -128,6 +128,42 @@ namespace ytpmv {
 	gl_Position.w = 1.0;\
 	}\
 	";
+	
+	void initGL(bool createContext) {
+		if(createContext)
+			createGLContext();
+		glewExperimental=true; // Needed in core profile
+		if (glewInit() != GLEW_OK) {
+			throw runtime_error("Failed to initialize GLEW\n");
+		}
+	}
+	
+	GLFWwindow* initGLWindowed(int w, int h) {
+		glewExperimental = true; // Needed for core profile
+		if( !glfwInit() ) {
+			fprintf( stderr, "Failed to initialize GLFW\n" );
+			return nullptr;
+		}
+		
+		glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+		glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
+		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL 
+		
+		
+		GLFWwindow* window; // (In the accompanying source code, this variable is global for simplicity)
+		window = glfwCreateWindow(w, h, "libytpmv", NULL, NULL);
+		if( window == NULL ) {
+			fprintf( stderr, "Failed to open GLFW window.\n" );
+			glfwTerminate();
+			return nullptr;
+		}
+		glfwMakeContextCurrent(window);
+		initGL(false);
+		return window;
+	}
+	
 
 	GLuint loadShader(string FragmentShaderCode) {
 		// Create the shaders
@@ -190,13 +226,6 @@ namespace ytpmv {
 	}
 	FrameRenderer::FrameRenderer(int w, int h): w(w), h(h) {
 		//_init_opengl__2();
-		createGLContext();
-		
-		glewExperimental=true; // Needed in core profile
-		if (glewInit() != GLEW_OK) {
-			throw runtime_error("Failed to initialize GLEW\n");
-		}
-		
 		glGenFramebuffers(1, &fbo);
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		
@@ -209,7 +238,7 @@ namespace ytpmv {
 			throw runtime_error("framebuffer not complete\n");
 		}
 		
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		
 		
 		glViewportIndexedf(0,0,0,w,h);
@@ -242,16 +271,16 @@ namespace ytpmv {
 		glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
 		// Give our vertices to OpenGL.
 		glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
-		
 	}
-	void FrameRenderer::setRenderers(vector<string> code, int maxConcurrent, int maxParams) {
+	string FrameRenderer_generateCode(vector<string> code, int maxConcurrent, int maxParams) {
 		string shader = "\n\
 			#version 330 core\n\
 			in vec4 gl_FragCoord;\n\
 			out vec3 color; \n\
 			int paramOffset; \n\
 			uniform vec2 resolution; \n\
-			uniform float seconds; \n\
+			uniform float secondsAbs;\n\
+			uniform float secondsRelArr[" + to_string(maxConcurrent) + "]; \n\
 			uniform int enabledRendererCount;\n\
 			uniform sampler2D images[" + to_string(maxConcurrent) + "];\n\
 			uniform int enabledRenderers[" + to_string(maxConcurrent) + "];\n\
@@ -266,22 +295,26 @@ namespace ytpmv {
 		
 		// all the user render functions, each named renderFunc$i
 		for(int i=0; i<(int)code.size(); i++) {
-			shader += "vec4 renderFunc" + to_string(i) + "(vec2 pos, sampler2D image) {\n"
+			shader += "vec4 renderFunc" + to_string(i) + "(vec2 pos, float secondsRel, sampler2D image) {\n"
 						+ code[i] + "\n}";
 		}
 		
 		// a function that takes a renderer id and calls it
 		shader +=
-			"vec4 renderDispatch(int id, vec2 pos, sampler2D image){ \n\
+			"vec4 renderDispatch(int id, vec2 pos, float secondsRel, sampler2D image){ \n\
 				switch(id) {\n";
 		for(int i=0; i<(int)code.size(); i++) {
 			shader += "case " + to_string(i) + ":\n";
-			shader += "return renderFunc" + to_string(i) + "(pos, image);\n";
+			shader += "return renderFunc" + to_string(i) + "(pos, secondsRel, image);\n";
 			shader += "break;";
 		}
 		shader +=
 			"	}\n\
 			}";
+		return shader;
+	}
+	void FrameRenderer::setRenderers(vector<string> code, int maxConcurrent, int maxParams) {
+		string shader = FrameRenderer_generateCode(code, maxConcurrent, maxParams);
 		
 		// main function
 		shader +=
@@ -294,9 +327,9 @@ namespace ytpmv {
 			shader +=
 				"if(" + I + " < enabledRendererCount) {\n\
 					paramOffset = " + to_string(i*maxParams) + ";\n\
-					tmp = renderDispatch(enabledRenderers[" + I + "], uv, images[" + I + "]);\n\
+					tmp = renderDispatch(enabledRenderers[" + I + "], uv, secondsRelArr[" + I + "], images[" + I + "]);\n\
 					color = color*(1-tmp.a) + tmp.rgb*tmp.a;\n\
-				}";
+				}\n";
 		}
 		shader += 
 			"}\n";
@@ -313,6 +346,7 @@ namespace ytpmv {
 				}\n\
 			}\n";*/
 
+		//fprintf(stderr, "%s\n", shader.c_str());;
 		programID = loadShader(shader);
 		glUseProgram(programID);
 		this->maxConcurrent = maxConcurrent;
@@ -353,12 +387,15 @@ namespace ytpmv {
 		glUniform1fv(loc, maxConcurrent*maxParams, params);
 	}
 	void FrameRenderer::setUserParams(vector<vector<float> > params) {
+		assert(int(params.size()) <= maxConcurrent);
+		
 		float tmp[maxConcurrent*maxParams];
 		memset(tmp,0,sizeof(tmp));
 		
 		int n=0;
 		for(auto& arr: params) {
 			int i=0;
+			assert(int(arr.size()) <= maxParams);
 			for(float val: arr) {
 				tmp[n*maxParams + i] = val;
 				i++;
@@ -368,6 +405,7 @@ namespace ytpmv {
 		setUserParams(tmp);
 	}
 	void FrameRenderer::setImages(vector<Image> images) {
+		assert(int(images.size()) <= maxConcurrent);
 		int sz=(int)images.size();
 		for(int i=0; i<sz; i++) {
 			const Image& img = images[i];
@@ -392,15 +430,15 @@ namespace ytpmv {
 		glUniform1iv(loc, maxConcurrent, textureIDs);
 		assert(glGetError()==GL_NO_ERROR);
 	}
-	void FrameRenderer::setTime(double timeSeconds) {
-		GLint loc = glGetUniformLocation(programID, "seconds");
-		if(loc < 0) {
-			fprintf(stderr, "glGetUniformLocation() can not find seconds variable\n");
-			return;
-		}
-		glUniform1f(loc, (float)timeSeconds);
+	void FrameRenderer::setTime(float secondsAbs, const float* secondsRel) {
+		GLint loc = glGetUniformLocation(programID, "secondsRelArr");
+		GLint loc2 = glGetUniformLocation(programID, "secondsAbs");
+		if(loc >= 0)
+			glUniform1fv(loc, maxConcurrent, secondsRel);
+		if(loc2 >= 0)
+			glUniform1f(loc2, secondsAbs);
 	}
-	string FrameRenderer::render() {
+	void FrameRenderer::draw() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
 		// 1st attribute buffer : vertices
@@ -418,9 +456,10 @@ namespace ytpmv {
 		glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vertices
 		glDisableVertexAttribArray(0);
 		assert(glGetError()==GL_NO_ERROR);
-		
-		
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+	}
+	string FrameRenderer::render() {
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		draw();
 		
 		string ret;
 		ret.resize(w*h*4);

@@ -10,7 +10,7 @@ namespace ytpmv {
 		int segmentIndex;
 		bool off;
 	};
-	bool operator<(const NoteEvent& a, const NoteEvent& b) {
+	static bool operator<(const NoteEvent& a, const NoteEvent& b) {
 		return a.t < b.t;
 	}
 

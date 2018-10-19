@@ -2,7 +2,14 @@
 #include <string>
 #include <vector>
 using namespace std;
+class GLFWwindow;
+
 namespace ytpmv {
+	// initialize glew
+	void initGL(bool createContext=true);
+	// create a window & context, then initialize glew
+	GLFWwindow* initGLWindowed(int w, int h);
+	
 	class FrameRenderer {
 	public:
 		FrameRenderer(int w, int h);
@@ -15,7 +22,7 @@ namespace ytpmv {
 		// vec4 render(sampler2d img, vec2 pos) {...}
 		// img is the current frame of the input video; pos is the on-screen
 		// pixel position from 0.0 to 1.0
-		void setRenderers(vector<string> code, int maxConcurrent=32, int maxParams=16);
+		void setRenderers(vector<string> code, int maxConcurrent=16, int maxParams=16);
 		
 		// called every time a segment starts or ends
 		
@@ -32,10 +39,12 @@ namespace ytpmv {
 		
 		// called every frame
 		void setImages(vector<Image> images);
-		void setTime(double timeSeconds);
+		void setTime(float secondsAbs, const float* secondsRel);
 		string render();
 	
 	public:
+		void draw();
+		
 		uint32_t programID = -1;
 		int maxConcurrent = 0;
 		int maxParams = 0;

@@ -123,6 +123,27 @@ namespace ytpmv {
 		}
 	};
 	
+	class VideoSegment {
+	public:
+		double startSeconds, endSeconds;
+		double speed; // 1 => original speed
+		string shader;
+		vector<float> shaderParams;
+		const Image* source;
+		int sourceFrames;
+		VideoSegment() {}
+		VideoSegment(const Note& n, const VideoSource& src, double bpm) {
+			startSeconds = n.start.absRow*60/bpm;
+			endSeconds = n.end.absRow*60/bpm;
+			speed = 1.;
+			source = src.frames.data();
+			sourceFrames = src.frames.size();
+		}
+		double durationSeconds() const {
+			return endSeconds - startSeconds;
+		}
+	};
+	
 	inline std::string get_file_contents(const char *filename) {
 		std::ifstream in(filename, std::ios::in | std::ios::binary);
 		if(in) {
