@@ -141,7 +141,7 @@ namespace ytpmv {
 		gst_element_set_state(GST_ELEMENT(pipeline), GST_STATE_PLAYING);
 
 		// iterate
-		fprintf(stderr, "Running...\n");
+		fprintf(stderr, "RUNNING GSTREAMER PIPELINE FOR AUDIO: %s\n", file);
 		g_main_loop_run(loop);
 
 		// out of the main loop, clean up nicely
@@ -174,5 +174,135 @@ namespace ytpmv {
 			//fprintf(stderr, "%d\n", int(((int16_t*)out_data)[i]));
 		}
 		return as;
+	}
+	
+	static void on_pad_added_video(GstElement *decodebin,
+							 GstPad *pad,
+							 gpointer data) {
+		GstElement *convert = (GstElement *) data;
+		fprintf(stderr, "pad added\n");
+		GstCaps *caps;
+		GstStructure *str;
+		GstPad *videopad;
+
+		videopad = gst_element_get_static_pad(convert, "sink");
+		if (GST_PAD_IS_LINKED(videopad)) {
+			g_object_unref(videopad);
+			return;
+		}
+
+		caps = gst_pad_query_caps(pad, NULL);
+		str = gst_caps_get_structure(caps, 0);
+		fprintf(stderr, "here %s\n",gst_structure_get_name(str));
+		if (!g_strrstr(gst_structure_get_name(str), "video")) {
+			gst_caps_unref(caps);
+			gst_object_unref(videopad);
+			fprintf(stderr, "ERROR 1\n");
+			return;
+		}
+		
+		gst_caps_unref(caps);
+		gst_pad_link(pad, videopad);
+		g_object_unref(videopad);
+		fprintf(stderr, "pad linked\n");
+	}
+	VideoSource loadVideo(const char* file, double systemFPS) {
+		GstElement *pipeline, *source, *decode, *sink, *convert;
+		GMainLoop *loop;
+		GstBus *bus;
+		guint bus_watch_id;
+		GMemoryOutputStream *stream;
+		gpointer out_data;
+
+		// loop
+		loop = g_main_loop_new(NULL, false);
+		// pipeline
+		pipeline = gst_pipeline_new("test_pipeline");
+		// sink
+		stream = G_MEMORY_OUTPUT_STREAM(g_memory_output_stream_new(NULL, 0, (GReallocFunc)g_realloc, (GDestroyNotify)g_free));
+		sink = gst_element_factory_make ("giostreamsink", "sink");
+		g_object_set(G_OBJECT(sink), "stream", stream, NULL);
+		// source
+		source = gst_element_factory_make("filesrc", "source");
+		g_object_set(G_OBJECT(source), "location", file, NULL);
+		// convert
+		convert = gst_element_factory_make("videoconvert", "convert");
+		// decode
+		decode = gst_element_factory_make("decodebin", "decoder");
+		// link decode to convert
+		g_signal_connect(decode, "pad-added", G_CALLBACK(on_pad_added_video), convert);
+
+		// bus
+		bus = gst_pipeline_get_bus(GST_PIPELINE (pipeline));
+		bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
+		gst_object_unref(bus);
+
+		// add elements into pipeline
+		gst_bin_add_many(GST_BIN(pipeline), source, decode, convert, sink, NULL);
+		// link source to decode
+		gst_element_link(source, decode);
+		//gst_element_link(convert, sink);
+		// caps
+		GstCaps *caps;
+		caps = gst_caps_new_simple("video/x-raw",
+									"format", G_TYPE_STRING, "RGB",
+								   "interlace-mode", G_TYPE_STRING, "progressive",
+								   NULL);
+		// link convert to sink
+		gst_element_link_filtered(convert, sink, caps);
+		gst_caps_unref(caps);
+		// start playing
+		gst_element_set_state(GST_ELEMENT(pipeline), GST_STATE_PLAYING);
+
+		// iterate
+		fprintf(stderr, "RUNNING GSTREAMER PIPELINE FOR VIDEO: %s\n", file);
+		g_main_loop_run(loop);
+		
+		
+		// retrieve the dimensions of the video
+		GstPad* sinkPad = gst_element_get_static_pad (sink, "sink");
+		GstCaps* sinkCaps = gst_pad_get_current_caps (sinkPad);
+		GstStructure* sinkCapsStruct = gst_caps_get_structure(sinkCaps, 0);
+		fprintf(stderr, "pad caps: %s\n",  gst_caps_to_string (sinkCaps));
+		
+		int width, height;
+		if((!gst_structure_get_int (sinkCapsStruct, "width", &width))
+			|| (!gst_structure_get_int (sinkCapsStruct, "height", &height))) {
+			throw runtime_error(string("No Width/Height are Available in the Incoming Stream Data !! file: ") + file + "\n");
+		}
+		fprintf(stderr, "dimensions: %d x %d\n", width, height);
+
+		// out of the main loop, clean up nicely
+		fprintf(stderr, "Returned, stopping playback\n");
+		gst_element_set_state(pipeline, GST_STATE_NULL);
+
+		fprintf(stderr, "Deleting pipeline\n");
+		gst_object_unref(GST_OBJECT(pipeline));
+		g_source_remove (bus_watch_id);
+		g_main_loop_unref(loop);
+
+		// get data
+		fprintf(stderr, "get data\n");
+		out_data = g_memory_output_stream_get_data(G_MEMORY_OUTPUT_STREAM(stream));
+
+		unsigned long size = g_memory_output_stream_get_size(G_MEMORY_OUTPUT_STREAM(stream));
+		unsigned long sizeData = g_memory_output_stream_get_data_size(G_MEMORY_OUTPUT_STREAM(stream));
+		std::cerr << "stream size: " << size << std::endl;
+		std::cerr << "stream data size: " << sizeData << std::endl;
+
+		// access data and store in vector
+		int imgBytes = width*height*3;
+		
+		VideoSource vs;
+		vs.name = file;
+		vs.speed = 1.;
+		
+		for(int i=0; i<sizeData; i+=imgBytes) {
+			int bytesLeft = sizeData-i;
+			if(bytesLeft < imgBytes) break;
+			Image img = {width,height,string(((char*)out_data) + i, imgBytes)};
+			vs.frames.push_back(img);
+		}
+		return vs;
 	}
 }
