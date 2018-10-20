@@ -1,5 +1,5 @@
 
-LIBYTPMV=modparser.C audiorenderer.C samplecache.C mmutil.C framerenderer.C videorenderer.C -lGL -lGLEW -lEGL -lX11 -lgbm -lSoundTouch  `pkg-config --cflags --libs gstreamer-1.0 gio-2.0`
+LIBYTPMV=modparser.C audiorenderer.C samplecache.C mmutil.C framerenderer.C videorenderer.C simple.C -lGL -lGLEW -lEGL -lX11 -lgbm -lSoundTouch -lpthread -lasound `pkg-config --cflags --libs gstreamer-1.0 gio-2.0`
 
 test1:
 	g++ -o test1 test1.C modparser.C --std=c++0x -g3
@@ -13,3 +13,5 @@ test5:
 	g++ -o test5 test5.C $(LIBYTPMV) --std=c++0x -lglfw -g3 -Wall
 test6:
 	g++ -o test6 test6.C $(LIBYTPMV) --std=c++0x -lglfw -g3 -Wall
+test7:
+	g++ -o test7 test7.C $(LIBYTPMV) --std=c++0x -lglfw -g3 -Wall
