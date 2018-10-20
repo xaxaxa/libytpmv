@@ -11,9 +11,8 @@ namespace ytpmv {
 	class VideoRendererTimeDriven {
 	public:
 		VideoRendererState* st;
-		double fps;
 		
-		VideoRendererTimeDriven(const vector<VideoSegment>& segments, int w, int h, double fps);
+		VideoRendererTimeDriven(const vector<VideoSegment>& segments, int w, int h, double fps, double systemFPS);
 		~VideoRendererTimeDriven();
 		
 		void drawFrame();
