@@ -112,7 +112,7 @@ namespace ytpmv {
 			startSeconds = n.start.absRow*60/bpm;
 			endSeconds = n.end.absRow*60/bpm;
 			pitch = pow(2,n.pitchSemitones/12.) * src.pitch;
-			tempo = 1.;
+			tempo = src.tempo;
 			for(int k=0; k<CHANNELS; k++)
 				amplitude[k] = pow(10,n.amplitudeDB/20.);
 			sampleData = src.sample.data();
