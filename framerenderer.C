@@ -321,6 +321,7 @@ namespace ytpmv {
 			"void main(){ \n\
 				vec2 uv = gl_FragCoord.xy/resolution;\n\
 				vec4 tmp;\n\
+				uv.y = 1.0-uv.y;\n\
 				color = vec3(0.0,0.0,0.0);\n";
 		for(int i=0; i<maxConcurrent; i++) {
 			string I = to_string(i);
