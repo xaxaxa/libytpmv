@@ -1,4 +1,4 @@
-#include "include/framerenderer.H"
+#include <ytpmv/framerenderer.H>
 #include <stdio.h>
 #include <stdlib.h>
 #include <GL/glew.h>
@@ -17,7 +17,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "include/glcontext.H"
+#include <ytpmv/glcontext.H>
 
 using namespace glm;
 using namespace std;

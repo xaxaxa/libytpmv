@@ -1,5 +1,5 @@
-#include "include/audiorenderer.H"
-#include "include/samplecache.H"
+#include <ytpmv/audiorenderer.H>
+#include <ytpmv/samplecache.H>
 #include <algorithm>
 #include <map>
 

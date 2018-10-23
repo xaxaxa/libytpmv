@@ -1,17 +1,34 @@
 
-LIBYTPMV=modparser.C audiorenderer.C samplecache.C mmutil.C framerenderer.C videorenderer.C simple.C -lGL -lGLEW -lEGL -lX11 -lgbm -lSoundTouch -lpthread -lasound `pkg-config --cflags --libs gstreamer-1.0 gio-2.0`
+#LIBYTPMV=modparser.C audiorenderer.C samplecache.C mmutil.C framerenderer.C videorenderer.C simple.C -lGL -lGLEW -lEGL -lX11 -lgbm -lSoundTouch -lpthread -lasound `pkg-config --cflags --libs gstreamer-1.0 gio-2.0`
 
-test1:
-	g++ -o test1 test1.C modparser.C --std=c++0x -g3
-test2:
-	g++ -o test2 test2.C $(LIBYTPMV) --std=c++0x -g3 -Wall
-test3:
-	g++ -o test3 test3.C $(LIBYTPMV) --std=c++0x -g3 -Wall
-test4:
-	g++ -o test4 test4.C $(LIBYTPMV) --std=c++0x -g3 -Wall
-test5:
-	g++ -o test5 test5.C $(LIBYTPMV) --std=c++0x -lglfw -g3 -Wall
-test6:
-	g++ -o test6 test6.C $(LIBYTPMV) --std=c++0x -lglfw -g3 -Wall
-test7:
-	g++ -o test7 test7.C $(LIBYTPMV) --std=c++0x -lglfw -g3 -Wall
+LIBYTPMV=modparser.o audiorenderer.o samplecache.o mmutil.o framerenderer.o videorenderer.o simple.o
+LIBS= -lglfw -lGL -lGLEW -lEGL -lX11 -lgbm -lSoundTouch -lpthread -lasound `pkg-config --libs gstreamer-1.0 gio-2.0`
+
+CC_FLAGS = -Iinclude -g3 -Wall --std=c++0x `pkg-config --cflags gstreamer-1.0 gio-2.0`
+
+%.o: %.C
+	g++ -c $(CC_FLAGS) $< -o $@
+
+libytpmv.a: $(LIBYTPMV)
+	ar rcs libytpmv.a $(LIBYTPMV)
+
+test1: test1.C libytpmv.a
+	g++ -o $@ $^ $(CC_FLAGS) $(LIBS)
+
+test2: test2.C libytpmv.a
+	g++ -o $@ $^ $(CC_FLAGS) $(LIBS)
+
+test3: test3.C libytpmv.a
+	g++ -o $@ $^ $(CC_FLAGS) $(LIBS)
+
+test4: test4.C libytpmv.a
+	g++ -o $@ $^ $(CC_FLAGS) $(LIBS)
+
+test5: test5.C libytpmv.a
+	g++ -o $@ $^ $(CC_FLAGS) $(LIBS)
+
+test6: test6.C libytpmv.a
+	g++ -o $@ $^ $(CC_FLAGS) $(LIBS)
+
+test7: test7.C libytpmv.a
+	g++ -o $@ $^ $(CC_FLAGS) $(LIBS)

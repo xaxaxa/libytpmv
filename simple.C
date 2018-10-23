@@ -1,8 +1,8 @@
-#include "include/simple.H"
-#include "include/framerenderer.H"
-#include "include/videorenderer.H"
-#include "include/audiorenderer.H"
-#include "include/mmutil.H"
+#include <ytpmv/simple.H>
+#include <ytpmv/framerenderer.H>
+#include <ytpmv/videorenderer.H>
+#include <ytpmv/audiorenderer.H>
+#include <ytpmv/mmutil.H>
 #include <functional>
 #include <map>
 #include <pthread.h>

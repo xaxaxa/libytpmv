@@ -1,9 +1,7 @@
 #include <stdio.h>
-#include "include/modparser.H"
-#include "include/audiorenderer.H"
-#include "include/mmutil.H"
-#include "include/common.H"
-#include "include/simple.H"
+#include <ytpmv/modparser.H>
+#include <ytpmv/common.H>
+#include <ytpmv/simple.H>
 #include <math.h>
 #include <unistd.h>
 

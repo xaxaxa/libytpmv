@@ -1,5 +1,5 @@
-#include "include/videorenderer.H"
-#include "include/framerenderer.H"
+#include <ytpmv/videorenderer.H>
+#include <ytpmv/framerenderer.H>
 #include <stdio.h>
 #include <unistd.h>
 #include <GL/glew.h>

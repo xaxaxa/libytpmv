@@ -1,4 +1,4 @@
-#include "include/modparser.H"
+#include <ytpmv/modparser.H>
 #include <math.h>
 #include <stdexcept>
 #include <arpa/inet.h>
