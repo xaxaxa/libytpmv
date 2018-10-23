@@ -3,8 +3,9 @@
 
 using namespace std;
 namespace ytpmv {
-	// you must call ytpmv::initGL() or initialize GLEW yourself prior to calling this function
-	void renderVideo(const vector<VideoSegment>& segments, int fps, int w, int h, function<void(uint8_t* data)> writeFrame);
+	// you must call ytpmv::initGL() or initialize GLEW yourself prior to calling this function;
+	// data is in RGBA32 format
+	void renderVideo(const vector<VideoSegment>& segments, double fps, int w, int h, function<void(uint8_t* data)> writeFrame);
 	
 	// for realtime rendering; this allows skipping frames
 	class VideoRendererState;

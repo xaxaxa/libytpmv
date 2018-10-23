@@ -1,6 +1,7 @@
 #include "include/videorenderer.H"
 #include "include/framerenderer.H"
 #include <algorithm>
+#include <map>
 #include <unordered_map>
 #include <assert.h>
 #include <GL/glew.h>
@@ -17,8 +18,22 @@ namespace ytpmv {
 	static bool operator<(const NoteEventV& a, const NoteEventV& b) {
 		return a.t < b.t;
 	}
+	
+	
+	// comparator for segment id that will sort by zIndex of the video segments
+	struct SegmentCompare {
+		const vector<VideoSegment>& segments;
+		SegmentCompare(const vector<VideoSegment>& segments): segments(segments) {
+			
+		}
+		bool operator()(int a, int b) {
+			if(this->segments.at(a).zIndex < this->segments.at(b).zIndex) return true;
+			if(this->segments.at(a).zIndex > this->segments.at(b).zIndex) return false;
+			return a<b;
+		}
+	};
 
-	void renderVideo(const vector<VideoSegment>& segments, int fps, int w, int h, function<void(uint8_t* data)> writeFrame) {
+	void renderVideo(const vector<VideoSegment>& segments, double fps, int w, int h, function<void(uint8_t* data)> writeFrame) {
 		FrameRenderer fr(w,h);
 		vector<string> shaders;
 		unordered_map<size_t, int> shaderIDs;
@@ -55,7 +70,7 @@ namespace ytpmv {
 			evt.segmentIndex = i;
 			events.push_back(evt);
 			
-			evt.t = segments[i].endSeconds;
+			evt.t = (int)round(segments[i].endSeconds*fps);
 			evt.off = true;
 			events.push_back(evt);
 		}
@@ -68,7 +83,9 @@ namespace ytpmv {
 		
 		// go through all note events and render the regions between events
 		
-		unordered_map<int, int> notesActive; // map from note index to start time in frames
+		// map from note index to start time in frames
+		map<int, int, SegmentCompare> notesActive(SegmentCompare{segments});
+		
 		for(int i=0;i<evts-1;i++) {
 			NoteEventV evt = events[i];
 			int curTimeFrames = events[i].t;
@@ -107,16 +124,20 @@ namespace ytpmv {
 				double timeSeconds = double(curTimeFrames+j)/fps;
 				for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 					const VideoSegment& seg = segments.at((*it).first);
-					int srcFrameNum = (int)round(j*seg.speed);
+					double t = timeSeconds-seg.startSeconds;
+					
+					int srcFrameNum = (int)round(t*fps*seg.speed);
 					if(srcFrameNum >= seg.sourceFrames) srcFrameNum = seg.sourceFrames-1;
+					if(srcFrameNum < 0) srcFrameNum = 0;
+					
 					images[k] = seg.source[srcFrameNum];
-					relTimeSeconds[k] = float(timeSeconds-seg.startSeconds);
+					relTimeSeconds[k] = float(t);
 					k++;
 				}
 				fr.setTime(float(timeSeconds), relTimeSeconds);
 				fr.setImages(images);
-				fr.draw();
-				writeFrame(nullptr);
+				string imgData = fr.render();
+				writeFrame((uint8_t*)imgData.data());
 			}
 		}
 	}
@@ -125,15 +146,23 @@ namespace ytpmv {
 	public:
 		FrameRenderer fr;
 		const vector<VideoSegment>& segments;
-		vector<string> shaders;
-		unordered_map<size_t, int> shaderIDs;
-		unordered_map<const char*, int> shaderIDs2;
-		vector<NoteEventV> events;
-		unordered_map<int, int> notesActive; // map from note index to start time in frames
 		double fps, systemFPS;
 		int lastEventIndex;
 		int curFrame;
-		VideoRendererState(const vector<VideoSegment>& segments, int w, int h, double fps, double systemFPS): fr(w,h), segments(segments), fps(fps), systemFPS(systemFPS) {
+		
+		vector<NoteEventV> events;
+		vector<string> shaders;
+		unordered_map<size_t, int> shaderIDs;
+		unordered_map<const char*, int> shaderIDs2;
+		
+		
+		
+		map<int, int, SegmentCompare> notesActive; // map from note index to start time in frames
+		
+		VideoRendererState(const vector<VideoSegment>& segments, int w, int h, double fps, double systemFPS):
+			fr(w,h), segments(segments), fps(fps), systemFPS(systemFPS),
+			notesActive(SegmentCompare(segments)) {
+			
 			lastEventIndex = 0;
 			curFrame = -1;
 			// find all used shader code strings
@@ -156,7 +185,7 @@ namespace ytpmv {
 				shaders.push_back(seg.shader);
 				nextIndex++;
 			}
-			fr.setRenderers(shaders,16,8);
+			fr.setRenderers(shaders,16,16);
 			
 			// convert note list into note event list
 			for(int i=0;i<(int)segments.size();i++) {
@@ -173,12 +202,13 @@ namespace ytpmv {
 			
 			// sort based on event time
 			sort(events.begin(), events.end());
-			//fprintf(stderr, "%d events\n", (int)events.size());
+			
+			// draw to screen
+			fr.setRenderToScreen();
 		}
 		void drawFrame() {
 			int k=0;
 			double timeSeconds = curFrame/fps;
-			NoteEventV& evt = events[lastEventIndex];
 			vector<Image> images;
 			float relTimeSeconds[fr.maxConcurrent];
 			assert(int(notesActive.size()) <= fr.maxConcurrent);
@@ -223,11 +253,14 @@ namespace ytpmv {
 					// collect renderers and parameters for this region
 					vector<int> enabledRenderers;
 					vector<vector<float> > params;
+					int lastZIndex = -(1<<29);
 					for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 						const VideoSegment& s = segments.at((*it).first);
 						int shaderID = shaderIDs2[s.shader.data()];
 						enabledRenderers.push_back(shaderID);
 						params.push_back(s.shaderParams);
+						assert(s.zIndex >= lastZIndex);
+						lastZIndex = s.zIndex;
 					}
 					fr.setEnabledRenderers(enabledRenderers);
 					fr.setUserParams(params);

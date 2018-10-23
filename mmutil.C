@@ -1,3 +1,6 @@
+// the uglies are kept in this file while the rest of the library
+// deals in sane and easy to understand APIs
+
 #include "include/mmutil.H"
 #include <sstream>
 #include <string>
@@ -26,7 +29,6 @@ namespace ytpmv {
 	static int _sssss = _init__();
 	
 	
-		
 	static void on_pad_added(GstElement *decodebin,
 							 GstPad *pad,
 							 gpointer data) {
@@ -88,7 +90,8 @@ namespace ytpmv {
 		return true;
 	}
 	
-	
+	// TODO(xaxaxa): convert all this code to use gst_parse_launch() instead
+	// TODO(xaxaxa): set AudioSource speed based on systemSRate and file srate
 	AudioSource loadAudio(const char* file, int systemSRate) {
 		GstElement *pipeline, *source, *decode, *sink, *convert;
 		int rate = systemSRate;
@@ -206,6 +209,9 @@ namespace ytpmv {
 		g_object_unref(videopad);
 		fprintf(stderr, "pad linked\n");
 	}
+	
+	// TODO(xaxaxa): convert all this code to use gst_parse_launch() instead
+	// TODO(xaxaxa): set VideoSource speed based on systemFPS and file fps
 	VideoSource loadVideo(const char* file, double systemFPS) {
 		GstElement *pipeline, *source, *decode, *sink, *convert;
 		GMainLoop *loop;
@@ -304,5 +310,54 @@ namespace ytpmv {
 			vs.frames.push_back(img);
 		}
 		return vs;
+	}
+	
+	void encodeVideo(int audioFD, int videoFD, int w, int h, double fps, int srate, int outFD) {
+		string desc = string("fdsrc fd=") + to_string(videoFD) +
+					" ! rawvideoparse use-sink-caps=false width="+to_string(w)+" height="+to_string(h)+" framerate="+to_string((int)fps)+"/1 format=7"
+					" ! videoconvert ! x264enc ! mp4mux name=mux ! fdsink fd=" + to_string(outFD)
+					+ " fdsrc name=fdsrc_audio fd=" + to_string(audioFD) + 
+					" ! rawaudioparse pcm-format=GST_AUDIO_FORMAT_S16LE num-channels=2 interleaved=true sample-rate="+to_string(srate)+" ! audioconvert ! lamemp3enc ! mux.";
+		fprintf(stderr, "%s\n", desc.c_str());
+		GError* err = nullptr;
+		GstElement* pipeline = gst_parse_launch(desc.c_str(), &err);
+		if(err != nullptr) {
+			throw runtime_error(err->message);
+		}
+		
+		GstStateChangeReturn ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
+		if (ret == GST_STATE_CHANGE_FAILURE) {
+			gst_object_unref (pipeline);
+			throw runtime_error("gstreamer error; Unable to set the pipeline to the playing state.");
+		}
+		
+		GstBus* bus = gst_element_get_bus (pipeline);
+		GstMessage* msg = gst_bus_timed_pop_filtered (bus, GST_CLOCK_TIME_NONE, GstMessageType(GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
+		bool hasError = false;
+		
+		if (msg != NULL) {
+			GError *err;
+			gchar *debug_info;
+
+			switch (GST_MESSAGE_TYPE (msg)) {
+			case GST_MESSAGE_ERROR:
+				gst_message_parse_error (msg, &err, &debug_info);
+				g_printerr ("Error received from element %s: %s\n", GST_OBJECT_NAME (msg->src), err->message);
+				g_printerr ("Debugging information: %s\n", debug_info ? debug_info : "none");
+				g_clear_error (&err);
+				g_free (debug_info);
+				hasError = true;
+				break;
+			default:
+				break;
+			}
+			gst_message_unref (msg);
+		}
+		
+		gst_object_unref (bus);
+		gst_element_set_state (pipeline, GST_STATE_NULL);
+		gst_object_unref (pipeline);
+		
+		if(hasError) throw runtime_error("gstreamer error; see log");
 	}
 }

@@ -11,9 +11,8 @@
 // Usage: Uses same syntax and semantics as printf.
 // Output: <filename>:<line number>: <message>
 #ifndef MSG
-#define _printf_ printf
 #define MSG(msg,...) do {                       \
-        _printf_(__FILE__":%d: " msg "\n",      \
+        fprintf(stderr, __FILE__":%d: " msg "\n",      \
                  __LINE__, ##__VA_ARGS__);      \
     } while (0)
 #endif
@@ -88,7 +87,7 @@ static int ctxErrorHandler(Display *dpy, XErrorEvent *ev)
 
 void createGLContext()
 {
-    printf("Creating OpenGL Context...");
+    fprintf(stderr, "Creating OpenGL Context...");
     display = XOpenDisplay(NULL);
 
     if (!display) {

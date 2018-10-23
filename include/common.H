@@ -70,7 +70,7 @@ namespace ytpmv {
 	
 	struct Image {
 		int w,h;
-		// all images are in RGBA32 format (32bpp)
+		// all images are in RGB888 format (24bpp)
 		string data;
 	};
 	class VideoSource {
@@ -127,10 +127,22 @@ namespace ytpmv {
 	public:
 		double startSeconds, endSeconds;
 		double speed; // 1 => original speed
+		
+		// a function body that returns a vec4 (a,r,g,b) value;
+		// parameters passed in are:
+		// - pos: vec2; absolute coordinates (x,y) from 0.0 to 1.0
+		// - image: sampler2D; source frame image
+		// - secondsAbs: float; seconds since the start of video
+		// - secondsRel: float; seconds since the start of the video segment
+		// - resolution: vec2; video resolution (w,h) in pixels
+		// functions accessible are:
+		// - float param(int i); returns user parameter i
 		string shader;
+		// user parameters
 		vector<float> shaderParams;
 		const Image* source;
 		int sourceFrames;
+		int zIndex;
 		VideoSegment() {}
 		VideoSegment(const Note& n, const VideoSource& src, double bpm) {
 			startSeconds = n.start.absRow*60/bpm;
@@ -138,10 +150,16 @@ namespace ytpmv {
 			speed = 1.;
 			source = src.frames.data();
 			sourceFrames = src.frames.size();
+			zIndex = 0;
 		}
 		double durationSeconds() const {
 			return endSeconds - startSeconds;
 		}
+	};
+	
+	class PlaybackSettings {
+	public:
+		double volume=1.; // linear volume; 1 => no change
 	};
 	
 	inline std::string get_file_contents(const char *filename) {
