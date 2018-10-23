@@ -41,6 +41,17 @@ namespace ytpmv {
 		void setImages(vector<Image> images);
 		void setTime(float secondsAbs, const float* secondsRel);
 		string render();
+		
+		// call this before draw() to render to screen
+		void setRenderToScreen();
+		// call this to return to drawing to internal framebuffer (needed for render())
+		void setRenderToInternal();
+		
+		// mat should be an array of 6 containing:
+		// xx, xy,
+		// yx, yy,
+		// bx, by
+		void setTransform(float* mat);
 	
 	public:
 		void draw();

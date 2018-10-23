@@ -278,6 +278,8 @@ namespace ytpmv {
 			in vec4 gl_FragCoord;\n\
 			out vec3 color; \n\
 			int paramOffset; \n\
+			uniform vec2 coordBase;\n\
+			uniform mat2 coordTransform;\n\
 			uniform vec2 resolution; \n\
 			uniform float secondsAbs;\n\
 			uniform float secondsRelArr[" + to_string(maxConcurrent) + "]; \n\
@@ -319,9 +321,8 @@ namespace ytpmv {
 		// main function
 		shader +=
 			"void main(){ \n\
-				vec2 uv = gl_FragCoord.xy/resolution;\n\
+				vec2 uv = gl_FragCoord.xy*coordTransform + coordBase;\n\
 				vec4 tmp;\n\
-				uv.y = 1.0-uv.y;\n\
 				color = vec3(0.0,0.0,0.0);\n";
 		for(int i=0; i<maxConcurrent; i++) {
 			string I = to_string(i);
@@ -360,6 +361,8 @@ namespace ytpmv {
 		textures.resize(maxConcurrent);
 		glGenTextures(maxConcurrent, &textures[0]);
 		assert(glGetError()==GL_NO_ERROR);
+		
+		setRenderToInternal();
 	}
 	void FrameRenderer::setEnabledRenderers(vector<int> enabledRenderers) {
 		GLint loc1 = glGetUniformLocation(programID, "enabledRendererCount");
@@ -459,7 +462,6 @@ namespace ytpmv {
 		assert(glGetError()==GL_NO_ERROR);
 	}
 	string FrameRenderer::render() {
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		draw();
 		
 		string ret;
@@ -470,5 +472,30 @@ namespace ytpmv {
 		assert(glGetError()==GL_NO_ERROR);
 		//fprintf(stderr, "%d\n", (int)glGetError());
 		return ret;
+	}
+	void FrameRenderer::setRenderToScreen() {
+		float mat[6] = {1./w, 0.,
+						0., -1./h,
+						0., 1.};
+		setTransform(mat);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		assert(glGetError()==GL_NO_ERROR);
+	}
+	void FrameRenderer::setRenderToInternal() {
+		float mat[6] = {1./w, 0.,
+						0., 1./h,
+						0., 0.};
+		setTransform(mat);
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		assert(glGetError()==GL_NO_ERROR);
+	}
+	void FrameRenderer::setTransform(float* mat) {
+		GLint loc = glGetUniformLocation(programID, "coordTransform");
+		if(loc >= 0)
+			glUniformMatrix2fv(loc, 1, false, mat);
+		
+		loc = glGetUniformLocation(programID, "coordBase");
+		if(loc >= 0)
+			glUniform2f(loc, mat[4], mat[5]);
 	}
 }
