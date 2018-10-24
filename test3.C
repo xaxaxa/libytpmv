@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <ytpmv/modparser.H>
 #include <ytpmv/audiorenderer.H>
-#include <ytpmv/mmutil.H>
 #include <ytpmv/common.H>
+#include <ytpmv/simple.H>
 #include <math.h>
 #include <unistd.h>
 
@@ -15,25 +15,6 @@
 
 using namespace std;
 using namespace ytpmv;
-
-map<string, Source> sources;
-void addSource(string name, string audioFile, string videoFile,
-				double audioPitch=1., double audioTempo=1., double videoSpeed=1.) {
-	auto& src = sources[name];
-	src.name = name;
-	src.hasAudio = false;
-	src.hasVideo = false;
-	if(audioFile != "") {
-		src.audio = loadAudio(audioFile.c_str(), 44100);
-		src.audio.pitch *= audioPitch;
-		src.hasAudio = true;
-	}
-}
-Source* getSource(string name) {
-	auto it = sources.find(name);
-	if(it == sources.end()) throw runtime_error(string("getSource(): source ") + name + " not found");
-	return &(*it).second;
-}
 
 
 int main(int argc, char** argv) {
