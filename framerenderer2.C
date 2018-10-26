@@ -154,6 +154,7 @@ namespace ytpmv {
 			in vec4 gl_FragCoord;\n\
 			smooth in vec2 uv;\n\
 			out vec4 color; \n\
+			uniform vec2 resolution;\n\
 			uniform float secondsAbs;\n\
 			uniform float secondsRel; \n\
 			uniform sampler2D image;\n\
@@ -186,6 +187,10 @@ namespace ytpmv {
 
 			//fprintf(stderr, "%s\n", shader.c_str());;
 			programID.at(i) = loadShader2(shader);
+			
+			glUseProgram(programID.at(i));
+			GLint loc = glGetUniformLocation(programID.at(i), "resolution");
+			if(loc >= 0) glUniform2f(loc, w, h);
 		}
 		/*textures.resize(maxConcurrent);
 		glGenTextures(maxConcurrent, &textures[0]);*/
