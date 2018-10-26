@@ -25,6 +25,7 @@ namespace ytpmv {
 		vector<int> activeNotes;
 		vector<double> defaultVolumes;
 		vector<Note>* outNotes;
+		vector<int> lastInstrument;
 		PlayerState(int channels, vector<Note>* outNotes) {
 			this->channels = channels;
 			this->outNotes = outNotes;
@@ -33,12 +34,16 @@ namespace ytpmv {
 			curRowAbs = 0;
 			activeNotes.resize(channels, -1);
 			defaultVolumes.resize(0);
+			lastInstrument.resize(channels);
 		}
 	};
 	void parseModPattern(const uint8_t* patternData, int rows, PlayerState& ps) {
 		int rowBytes = ps.channels*4;
 		int ticksPerRow = 6;
 		double tickDuration = 1./50;
+		
+		int lastNote[ps.channels];
+		memset(lastNote,0,sizeof(lastNote));
 		for(int row=0; row<rows; row++) {
 			const uint8_t* rowData = patternData + row*rowBytes;
 			bool shouldBreak = false;
@@ -58,6 +63,7 @@ namespace ytpmv {
 				
 				//printf("%5d %5x    ", notePeriod, instrumentID);
 				
+				
 				if(effect == 0xC00) {
 					// note off
 					ps.activeNotes.at(channel) = -1;
@@ -75,7 +81,12 @@ namespace ytpmv {
 						fprintf(stderr, "%d, %d, %x: bpm %f\n", row, channel, effect, ps.bpm);
 					}
 				}
+				// if an instrument is specified without a note, start a new note with the last pitch
+				if(notePeriod == 0 && instrumentID != 0) {
+					notePeriod = lastNote[channel];
+				}
 				if(notePeriod > 0) {
+					lastNote[channel] = notePeriod;
 					double frequencyNormalized = 856./double(notePeriod);
 					double semitones = log2(frequencyNormalized)*12.;
 					
@@ -83,8 +94,9 @@ namespace ytpmv {
 				
 					double dB = ps.defaultVolumes.at(instrumentID);
 					if((effect & 0xf00) == 0xC00) {
-						dB = log10(double(effect&0xff)/64.)*10;
+						dB = log10(double(effect&0xff)/64.)*20;
 					}
+					if(instrumentID == 0) instrumentID = ps.lastInstrument.at(channel);
 					Note n;
 					n.start = {ps.curSeq, ps.curRow, ps.curRowAbs, 0.};
 					n.end = {ps.curSeq, ps.curRow+1, ps.curRowAbs+1, 0.};
@@ -94,12 +106,22 @@ namespace ytpmv {
 					n.amplitudeDB = dB;
 					ps.activeNotes.at(channel) = ps.outNotes->size();
 					ps.outNotes->push_back(n);
+					ps.lastInstrument.at(channel) = instrumentID;
 				} else {
 					int j = ps.activeNotes.at(channel);
 					if(j >= 0) {
-						ps.outNotes->at(j).end = {ps.curSeq, ps.curRow+1, ps.curRowAbs+1, 0.};
+						Note& n = ps.outNotes->at(j);
+						n.end = {ps.curSeq, ps.curRow+1, ps.curRowAbs+1, 0.};
+						// set volume
+						if((effect & 0xF00) == 0xC00) {
+							double dB = log10(double(effect&0xff)/64.)*20;
+							n.keyframes.push_back({ps.curRowAbs-n.start.absRow, dB-n.amplitudeDB, 0.});
+							//fprintf(stderr, "KEYFRAME: %f\n", dB);
+						}
 					}
 				}
+				
+				
 				if(effect == 0xd00) shouldBreak = true;
 			}
 			//printf("\n");
@@ -144,9 +166,9 @@ namespace ytpmv {
 			fineTune <<= 4;
 			fineTune >>= 4;
 			
-			ins.tuningSemitones = double(fineTune)/8. - 41;
+			ins.tuningSemitones = double(fineTune)/7. - 41;
 			if(volume == 0) dB = 0.;
-			else dB = log10(double(volume)/64.)*10;
+			else dB = log10(double(volume)/64.)*20;
 			
 			ins.sampleData.resize(sampleLen*CHANNELS);
 			defaultVolumes.push_back(dB);

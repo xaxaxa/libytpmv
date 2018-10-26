@@ -1,10 +1,10 @@
 
 #LIBYTPMV=modparser.C audiorenderer.C samplecache.C mmutil.C framerenderer.C videorenderer.C simple.C -lGL -lGLEW -lEGL -lX11 -lgbm -lSoundTouch -lpthread -lasound `pkg-config --cflags --libs gstreamer-1.0 gio-2.0`
 
-LIBYTPMV=modparser.o audiorenderer.o samplecache.o mmutil.o framerenderer.o videorenderer.o simple.o
+LIBYTPMV=modparser.o audiorenderer.o samplecache.o mmutil.o framerenderer.o framerenderer2.o videorenderer.o simple.o
 LIBS= -lglfw -lGL -lGLEW -lEGL -lX11 -lgbm -lSoundTouch -lpthread -lasound `pkg-config --libs gstreamer-1.0 gio-2.0`
 
-CC_FLAGS = -Iinclude -g3 -Wall --std=c++0x `pkg-config --cflags gstreamer-1.0 gio-2.0`
+CC_FLAGS = -Iinclude -g3 -Wall --std=c++0x `pkg-config --cflags gstreamer-1.0 gio-2.0` -fno-omit-frame-pointer
 
 %.o: %.C
 	g++ -c $(CC_FLAGS) $< -o $@

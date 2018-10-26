@@ -14,11 +14,15 @@ namespace ytpmv {
 		return a.t < b.t;
 	}
 
+	struct ActiveNoteKeyFrame {
+		int timeSamples;
+		double amplitude[CHANNELS];
+	};
 	struct ActiveNote {
 		double speed;
-		double amplitude[CHANNELS];
-		int startTimeSamples;
-		int endTimeSamples;
+		ActiveNoteKeyFrame *kfRight; // the keyframes right of the current point
+		ActiveNoteKeyFrame* kfEnd;
+		int startTimeSamples, endTimeSamples;
 		
 		int waveformLength;
 		const float* waveform;
@@ -31,24 +35,36 @@ namespace ytpmv {
 			float curSample[CHANNELS] = {};
 			
 			for(int j=0;j<noteCount;j++) {
-				ActiveNote n = notes[j];
-				int relTime = t-n.startTimeSamples;
-				int relTimeLeft = n.endTimeSamples-t;
-				int sampleTime = relTime*n.speed;
-				if(sampleTime<0) continue;
-				if(sampleTime >= n.waveformLength/CHANNELS) continue;
-				//sampleTime = sampleTime % n.waveformLength;
+				ActiveNote& n = notes[j];
 				
-				for(int k=0; k<CHANNELS; k++) {
-					float sample = n.waveform[sampleTime*CHANNELS+k];
-					
-					int fadeSamples=20;
-					double scale = 1./(double)fadeSamples;
-					if(relTime < fadeSamples) sample *= relTime*scale;
-					if(relTimeLeft < fadeSamples) sample *= relTimeLeft*scale;
-					//double sample = sin(2*M_PI*f*n.frequencyNormalized*relTime);
-					curSample[k] += sample*n.amplitude[k];
+				if(n.kfRight >= n.kfEnd) continue;
+				while(t >= n.kfRight->timeSamples) {
+					n.kfRight++;
+					if(n.kfRight >= n.kfEnd) goto cont;
 				}
+				{
+					ActiveNoteKeyFrame* kfLeft = n.kfRight-1;
+					
+					int relTime = t-n.startTimeSamples;
+					int relTimeLeft = n.endTimeSamples-t;
+					int sampleTime = relTime*n.speed;
+					if(sampleTime<0) continue;
+					if(sampleTime >= n.waveformLength/CHANNELS) continue;
+					//sampleTime = sampleTime % n.waveformLength;
+					
+					for(int k=0; k<CHANNELS; k++) {
+						float sample = n.waveform[sampleTime*CHANNELS+k];
+						double amplitude = kfLeft->amplitude[k];
+						
+						int fadeSamples=20;
+						double scale = 1./(double)fadeSamples;
+						if(relTime < fadeSamples) sample *= relTime*scale;
+						if(relTimeLeft < fadeSamples) sample *= relTimeLeft*scale;
+						
+						curSample[k] += sample*amplitude;
+					}
+				}
+			cont: ;
 			}
 			for(int k=0; k<CHANNELS; k++)
 				outBuf[i*CHANNELS+k] = curSample[k];
@@ -109,6 +125,8 @@ namespace ytpmv {
 			// render this region
 			int noteCount = notesActive.size();
 			ActiveNote tmp[noteCount];
+			vector<vector<ActiveNoteKeyFrame> > keyframes;
+			keyframes.resize(noteCount);
 			int j=0;
 			for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 				const AudioSegment& s = segments.at((*it).first);
@@ -127,8 +145,30 @@ namespace ytpmv {
 				tmp[j].speed = s.tempo;
 				tmp[j].startTimeSamples = s.startSeconds*srate;
 				tmp[j].endTimeSamples = s.endSeconds*srate;
+				if(tmp[j].endTimeSamples > tmp[j].startTimeSamples + tmp[j].waveformLength)
+					tmp[j].endTimeSamples = tmp[j].startTimeSamples + tmp[j].waveformLength;
+				
+				// add initial keyframe
+				ActiveNoteKeyFrame kf1;
+				kf1.timeSamples = tmp[j].startTimeSamples;
 				for(int k=0; k<CHANNELS; k++)
-					tmp[j].amplitude[k] = s.amplitude[k];
+					kf1.amplitude[k] = s.amplitude[k];
+				keyframes[j].push_back(kf1);
+				
+				// add note keyframes
+				for(const AudioKeyFrame& kf: s.keyframes) {
+					kf1.timeSamples = tmp[j].startTimeSamples + (int)round(kf.relTimeSeconds*srate);
+					for(int k=0; k<CHANNELS; k++)
+						kf1.amplitude[k] = s.amplitude[k]*kf.amplitude[k];
+					keyframes[j].push_back(kf1);
+				}
+				
+				// add end key frame
+				kf1.timeSamples = tmp[j].endTimeSamples;
+				keyframes[j].push_back(kf1);
+				
+				tmp[j].kfRight = keyframes[j].data() + 1;
+				tmp[j].kfEnd = keyframes[j].data() + keyframes[j].size();
 				j++;
 			}
 			

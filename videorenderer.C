@@ -1,5 +1,5 @@
 #include <ytpmv/videorenderer.H>
-#include <ytpmv/framerenderer.H>
+#include <ytpmv/framerenderer2.H>
 #include <algorithm>
 #include <map>
 #include <unordered_map>
@@ -116,7 +116,7 @@ namespace ytpmv {
 			fr.setUserParams(params);
 			
 			// render frames in this region
-			vector<Image> images;
+			vector<const Image*> images;
 			float relTimeSeconds[fr.maxConcurrent];
 			images.resize(notesActive.size());
 			for(int j=0; j<durationFrames; j++) {
@@ -130,12 +130,21 @@ namespace ytpmv {
 					if(srcFrameNum >= seg.sourceFrames) srcFrameNum = seg.sourceFrames-1;
 					if(srcFrameNum < 0) srcFrameNum = 0;
 					
-					images[k] = seg.source[srcFrameNum];
+					images[k] = &seg.source[srcFrameNum];
 					relTimeSeconds[k] = float(t);
+					
+					// find current keyframe
+					for(auto& kf: seg.keyframes) {
+						if(kf.relTimeSeconds <= t)
+							params.at(k) = kf.shaderParams;
+						else break;
+					}
+					
 					k++;
 				}
 				fr.setTime(float(timeSeconds), relTimeSeconds);
 				fr.setImages(images);
+				fr.setUserParams(params);
 				string imgData = fr.render();
 				writeFrame((uint8_t*)imgData.data());
 			}
@@ -158,7 +167,7 @@ namespace ytpmv {
 		
 		
 		map<int, int, SegmentCompare> notesActive; // map from note index to start time in frames
-		
+		vector<vector<float> > curUserParams;
 		VideoRendererState(const vector<VideoSegment>& segments, int w, int h, double fps, double systemFPS):
 			fr(w,h), segments(segments), fps(fps), systemFPS(systemFPS),
 			notesActive(SegmentCompare(segments)) {
@@ -185,7 +194,7 @@ namespace ytpmv {
 				shaders.push_back(seg.shader);
 				nextIndex++;
 			}
-			fr.setRenderers(shaders,16,16);
+			fr.setRenderers(shaders);
 			
 			// convert note list into note event list
 			for(int i=0;i<(int)segments.size();i++) {
@@ -209,23 +218,36 @@ namespace ytpmv {
 		void drawFrame() {
 			int k=0;
 			double timeSeconds = curFrame/fps;
-			vector<Image> images;
+			vector<const Image*> images;
 			float relTimeSeconds[fr.maxConcurrent];
 			assert(int(notesActive.size()) <= fr.maxConcurrent);
 			
 			images.resize(notesActive.size());
 			for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 				const VideoSegment& seg = segments.at((*it).first);
+				
+				// find source frame
+				double relTime = timeSeconds-seg.startSeconds;
 				int segStartFrame = (int)round(seg.startSeconds*fps);
 				double srcSpeedMultiplier = systemFPS/fps;
 				int srcFrameNum = (int)round((curFrame-segStartFrame)*seg.speed*srcSpeedMultiplier);
 				if(srcFrameNum >= seg.sourceFrames) srcFrameNum = seg.sourceFrames-1;
-				images[k] = seg.source[srcFrameNum];
+				
+				// set parameters
+				images[k] = &seg.source[srcFrameNum];
 				relTimeSeconds[k] = float(timeSeconds-seg.startSeconds);
+				
+				// find current keyframe
+				for(auto& kf: seg.keyframes) {
+					if(kf.relTimeSeconds <= relTime)
+						curUserParams.at(k) = kf.shaderParams;
+					else break;
+				}
 				k++;
 			}
 			fr.setTime(float(timeSeconds), relTimeSeconds);
 			fr.setImages(images);
+			fr.setUserParams(curUserParams);
 			fr.draw();
 		}
 		void advanceTo(int frame) {
@@ -252,18 +274,18 @@ namespace ytpmv {
 					}
 					// collect renderers and parameters for this region
 					vector<int> enabledRenderers;
-					vector<vector<float> > params;
 					int lastZIndex = -(1<<29);
+					curUserParams.clear();
 					for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 						const VideoSegment& s = segments.at((*it).first);
 						int shaderID = shaderIDs2[s.shader.data()];
 						enabledRenderers.push_back(shaderID);
-						params.push_back(s.shaderParams);
+						curUserParams.push_back(s.shaderParams);
 						assert(s.zIndex >= lastZIndex);
 						lastZIndex = s.zIndex;
 					}
 					fr.setEnabledRenderers(enabledRenderers);
-					fr.setUserParams(params);
+					fr.setUserParams(curUserParams);
 				}
 				lastEventIndex++;
 			}

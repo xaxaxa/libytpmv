@@ -39,6 +39,13 @@ namespace ytpmv {
 			return (60./bpm);
 		}
 	};
+	struct NoteKeyFrame {
+		double relTimeRows;
+		
+		// relative to note amplitude and pitch
+		double amplitudeDB;
+		double pitchSemitones;
+	};
 	// represents one note from mod/midi file
 	class Note {
 	public:
@@ -47,6 +54,9 @@ namespace ytpmv {
 		int instrument;
 		double pitchSemitones; // semitones relative to the sample note (a pitch of 0 means play the sample at original speed)
 		double amplitudeDB; // in dB; 0 is default amplitude
+		
+		// does not include the initial keyframe
+		vector<NoteKeyFrame> keyframes;
 		
 		// returns duration in rows
 		double durationRows() const {
@@ -86,6 +96,15 @@ namespace ytpmv {
 		VideoSource video;
 		bool hasAudio, hasVideo;
 	};
+	
+	struct AudioKeyFrame {
+		double relTimeSeconds;
+		
+		// relative to AudioSegment amplitude and pitch
+		double amplitude[CHANNELS];
+		double pitch;
+	};
+	
 	// a note or segment in the audio timeline; passed into AudioRenderer
 	class AudioSegment {
 	public:
@@ -95,6 +114,8 @@ namespace ytpmv {
 		double amplitude[CHANNELS];
 		const float* sampleData;
 		int sampleLength; // number of elements in the sampleData array (not number of samples)
+		
+		vector<AudioKeyFrame> keyframes;
 		
 		AudioSegment() {}
 		AudioSegment(const Note& n, const Instrument& ins, double bpm) {
@@ -107,6 +128,7 @@ namespace ytpmv {
 				amplitude[k] = pow(10,n.amplitudeDB/20.);
 			sampleData = ins.sampleData.data();
 			sampleLength = ins.sampleData.length();
+			copyKeyFrames(n.keyframes, pow(2,ins.tuningSemitones/12.), bpm);
 		}
 		AudioSegment(const Note& n, const AudioSource& src, double bpm) {
 			startSeconds = n.start.absRow*60/bpm;
@@ -117,12 +139,29 @@ namespace ytpmv {
 				amplitude[k] = pow(10,n.amplitudeDB/20.);
 			sampleData = src.sample.data();
 			sampleLength = src.sample.length();
+			copyKeyFrames(n.keyframes, src.pitch, bpm);
+		}
+		void copyKeyFrames(const vector<NoteKeyFrame>& kfs, double pitch, double bpm) {
+			for(const NoteKeyFrame& kf: kfs) {
+				AudioKeyFrame kf2;
+				kf2.relTimeSeconds = kf.relTimeRows*60/bpm;
+				for(int k=0; k<CHANNELS; k++)
+					kf2.amplitude[k] = pow(10,kf.amplitudeDB/20.);
+				kf2.pitch = pow(2,kf.pitchSemitones/12.) * pitch;
+				keyframes.push_back(kf2);
+			}
 		}
 		double durationSeconds() const {
 			return endSeconds - startSeconds;
 		}
 	};
 	
+	struct VideoKeyFrame {
+		// time of this keyframe relative to segment start
+		double relTimeSeconds;
+		// user parameters after this keyframe
+		vector<float> shaderParams;
+	};
 	class VideoSegment {
 	public:
 		double startSeconds, endSeconds;
@@ -143,6 +182,9 @@ namespace ytpmv {
 		const Image* source;
 		int sourceFrames;
 		int zIndex;
+		
+		vector<VideoKeyFrame> keyframes;
+		
 		VideoSegment() {}
 		VideoSegment(const Note& n, const VideoSource& src, double bpm) {
 			startSeconds = n.start.absRow*60/bpm;
@@ -160,6 +202,7 @@ namespace ytpmv {
 	class PlaybackSettings {
 	public:
 		double volume=1.; // linear volume; 1 => no change
+		double skipToSeconds=0.;
 	};
 	
 	inline std::string get_file_contents(const char *filename) {

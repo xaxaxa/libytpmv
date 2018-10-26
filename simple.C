@@ -20,7 +20,7 @@ namespace ytpmv {
 		return uint64_t(ts.tv_sec)*1000000 + uint64_t(ts.tv_nsec)/1000;
 	}
 	
-	
+	bool loadAudioOnly = false;
 	map<string, Source> sources;
 	void loadSource(Source& src, string audioFile, string videoFile,
 					double audioPitch, double audioTempo, double videoSpeed) {
@@ -32,7 +32,7 @@ namespace ytpmv {
 			src.audio.tempo *= audioTempo;
 			src.hasAudio = true;
 		}
-		if(videoFile != "") {
+		if(videoFile != "" && !loadAudioOnly) {
 			src.video = loadVideo(videoFile.c_str(), 30);
 			src.video.speed *= videoSpeed;
 			src.hasVideo = true;
@@ -50,6 +50,14 @@ namespace ytpmv {
 		if(it == sources.end()) throw runtime_error(string("getSource(): source ") + name + " not found");
 		return &(*it).second;
 	}
+	void trimSource(string name, double startTimeSeconds, double lengthSeconds) {
+		Source& src = *getSource(name);
+		if(src.hasAudio) {
+			int startSamples = (int)round(startTimeSeconds*44100);
+			int endSamples = (lengthSeconds==-1.)?string::npos: startSamples+(int)round(lengthSeconds*44100);
+			src.audio.sample = src.audio.sample.substr(startSamples*CHANNELS, endSamples*CHANNELS);
+		}
+	}
 	
 	class Player {
 	public:
@@ -61,7 +69,7 @@ namespace ytpmv {
 		// the fps that the video segment speeds are calculated based on
 		double systemFPS;
 		
-		GLFWwindow* window;
+		GLFWwindow* window = nullptr;
 		snd_pcm_t* alsaHandle;
 		
 		// the offset between the monotonic clock time and the playback time relative
@@ -71,7 +79,7 @@ namespace ytpmv {
 		volatile uint64_t offsetClockTimeMicros;
 		
 		const vector<AudioSegment>& audioSegments;
-		VideoRendererTimeDriven videoRenderer;
+		VideoRendererTimeDriven* videoRenderer = nullptr;
 		
 		const PlaybackSettings& settings;
 		
@@ -81,12 +89,15 @@ namespace ytpmv {
 			const PlaybackSettings& settings):
 				srate(srate),
 				systemFPS(systemFPS),
-				window(initGLWindowed(w,h)),
 				audioSegments(audio),
-				videoRenderer(video, w, h, fps, systemFPS),
 				settings(settings) {
 			
 			offsetClockTimeMicros = 0;
+			
+			if(video.size() > 0) {
+				window = initGLWindowed(w,h);
+				videoRenderer = new VideoRendererTimeDriven(video, w, h, fps, systemFPS);
+			}
 			
 			// open audio device
 			int err;
@@ -112,9 +123,12 @@ namespace ytpmv {
 				uint64_t tPlayback = round(double(samplesWritten)*1e6/srate);
 				offsetClockTimeMicros = t-tPlayback;
 				
+				samplesWritten += len/CHANNELS;
+				
+				if(double(samplesWritten)/srate < settings.skipToSeconds) return;
+				
 				for(int i=0; i<len; i++) data[i] *= settings.volume;
 				snd_pcm_writei(alsaHandle, data, len/CHANNELS);
-				samplesWritten += len/CHANNELS;
 			});
 		}
 		void videoThread() {
@@ -128,8 +142,8 @@ namespace ytpmv {
 					frame = (int)round(double(t)*1e-6*fps);
 				}
 				
-				videoRenderer.advanceTo(frame);
-				videoRenderer.drawFrame();
+				videoRenderer->advanceTo(frame);
+				videoRenderer->drawFrame();
 				
 				glfwSwapBuffers(window);
 				glfwPollEvents();
@@ -142,11 +156,28 @@ namespace ytpmv {
 		p->audioThread();
 		return NULL;
 	}
+	
+	void parseOptions(int argc, char** argv) {
+		if(argc > 1) {
+			if(strcmp(argv[1], "play") == 0) {
+			} else if(strcmp(argv[1], "playaudio") == 0) {
+				loadAudioOnly = true;
+			} else if(strcmp(argv[1], "renderaudio") == 0) {
+				loadAudioOnly = true;
+			} else if(strcmp(argv[1], "render") == 0) {
+			} else {
+				fprintf(stderr, "usage: %s (play|playaudio|render|renderaudio)\n", argv[0]);
+				exit(1);
+			}
+		}
+	}
+	
 	void play(const vector<AudioSegment>& audio, const vector<VideoSegment>& video, const PlaybackSettings& settings) {
 		Player p(audio, 44100, video, 800, 500, 30, settings);
 		pthread_t th;
 		pthread_create(&th, NULL, _audioThread, &p);
-		p.videoThread();
+		if(video.size() > 0)
+			p.videoThread();
 		pthread_join(th, NULL);
 	}
 	
@@ -162,6 +193,13 @@ namespace ytpmv {
 	
 	void* renderAudioThread(void* v) {
 		renderInfo& inf = *(renderInfo*)v;
+		
+		// FIXME(xaxaxa): the gstreamer encoding pipeline delays the video by about 150ms for some reason;
+		// delay the audio too to workaround this
+		int16_t buf[int(inf.srate/100)*CHANNELS];
+		memset(buf,0,sizeof(buf));
+		for(int i=0; i<15; i++)
+			write(inf.audioPipe[1], buf, sizeof(buf));
 		
 		renderAudio(*inf.audio,inf.srate, [&inf](float* data, int len) {
 			int16_t buf[len];
@@ -196,9 +234,12 @@ namespace ytpmv {
 		inf.fps = 30;
 		inf.srate = 44100;
 		
+		
+		
 		pthread_t th1, th2;
-		assert(pthread_create(&th1, NULL, &renderAudioThread, &inf) == 0);
+		
 		assert(pthread_create(&th2, NULL, &encodeVideoThread, &inf) == 0);
+		assert(pthread_create(&th1, NULL, &renderAudioThread, &inf) == 0);
 		
 		renderVideo(video, inf.fps, inf.w, inf.h, [&inf](uint8_t* data) {
 			write(inf.videoPipe[1],data,inf.w * inf.h * 4);
@@ -213,6 +254,18 @@ namespace ytpmv {
 		if(argc > 1) {
 			if(strcmp(argv[1], "play") == 0) {
 				play(audio, video, settings);
+				return 0;
+			} else if(strcmp(argv[1], "playaudio") == 0) {
+				play(audio, {}, settings);
+				return 0;
+			} else if(strcmp(argv[1], "renderaudio") == 0) {
+				renderInfo inf;
+				inf.audioPipe[1] = 1;	// write to stdout
+				inf.audio = &audio;
+				inf.video = nullptr;
+				inf.settings = &settings;
+				inf.srate = 44100;
+				renderAudioThread(&inf);
 				return 0;
 			} else if(strcmp(argv[1], "render") == 0) {
 				render(audio, video, settings);
