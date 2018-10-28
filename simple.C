@@ -92,7 +92,7 @@ namespace ytpmv {
 				audioSegments(audio),
 				settings(settings) {
 			
-			offsetClockTimeMicros = 0;
+			offsetClockTimeMicros = getTimeMicros() + 10000000;
 			
 			if(video.size() > 0) {
 				window = initGLWindowed(w,h);
@@ -118,7 +118,6 @@ namespace ytpmv {
 		void audioThread() {
 			int64_t samplesWritten = 0;
 			renderAudio(audioSegments, srate, [this, &samplesWritten](float* data, int len) {
-				
 				uint64_t t = getTimeMicros();
 				uint64_t tPlayback = round(double(samplesWritten)*1e6/srate);
 				offsetClockTimeMicros = t-tPlayback;
@@ -132,21 +131,39 @@ namespace ytpmv {
 			});
 		}
 		void videoThread() {
+			uint64_t renderDelay = 0;
+			uint64_t lastPrint = 0;
+			uint64_t lastFrames = 0;
+			uint64_t frames = 0;
+			
 			do {
 				uint64_t offs = offsetClockTimeMicros;
-				
 				int frame;
 				if(offs == 0) frame = 0;
 				else {
-					uint64_t t = getTimeMicros() - offs;
+					int64_t t = int64_t(getTimeMicros()) - offs - renderDelay;
 					frame = (int)round(double(t)*1e-6*fps);
 				}
 				
-				videoRenderer->advanceTo(frame);
-				videoRenderer->drawFrame();
+				//fprintf(stderr, "ADVANCE TO FRAME %d\n", frame);
+				if(!videoRenderer->advanceTo(frame)) break;
 				
+				uint64_t micros1 = getTimeMicros();
+				
+				videoRenderer->drawFrame();
 				glfwSwapBuffers(window);
+				
+				renderDelay = getTimeMicros() - micros1;
+				
+				if((micros1 - lastPrint) >= 1000000) {
+					fprintf(stderr, "\033[44;37mFRAMERATE: %d fps; RENDERDELAY: %d us\033[0m\n",
+						int(frames-lastFrames), int(renderDelay));
+					lastPrint = micros1;
+					lastFrames = frames;
+				}
+				
 				glfwPollEvents();
+				frames++;
 			} while( glfwGetKey(window, GLFW_KEY_ESCAPE ) != GLFW_PRESS &&
 			   glfwWindowShouldClose(window) == 0 );
 		}
@@ -173,7 +190,7 @@ namespace ytpmv {
 	}
 	
 	void play(const vector<AudioSegment>& audio, const vector<VideoSegment>& video, const PlaybackSettings& settings) {
-		Player p(audio, 44100, video, 800, 500, 30, settings);
+		Player p(audio, 44100, video, 896, 504, 30, settings);
 		pthread_t th;
 		pthread_create(&th, NULL, _audioThread, &p);
 		if(video.size() > 0)
@@ -193,13 +210,6 @@ namespace ytpmv {
 	
 	void* renderAudioThread(void* v) {
 		renderInfo& inf = *(renderInfo*)v;
-		
-		// FIXME(xaxaxa): the gstreamer encoding pipeline delays the video by about 150ms for some reason;
-		// delay the audio too to workaround this
-		int16_t buf[int(inf.srate/100)*CHANNELS];
-		memset(buf,0,sizeof(buf));
-		for(int i=0; i<15; i++)
-			write(inf.audioPipe[1], buf, sizeof(buf));
 		
 		renderAudio(*inf.audio,inf.srate, [&inf](float* data, int len) {
 			int16_t buf[len];
