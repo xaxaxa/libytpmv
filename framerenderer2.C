@@ -16,7 +16,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 using namespace glm;
 using namespace std;
@@ -25,19 +27,21 @@ using namespace std;
 
 
 namespace ytpmv {
-	string VertexShaderCode2 = "#version 330 core\n\
+	string defaultVertexShader = "#version 330 core\n\
 	layout(location = 0) in vec3 myPos;\
+	layout(location = 1) in vec2 texPos;\
 	uniform vec2 coordBase;\n\
 	uniform mat2 coordTransform;\n\
 	smooth out vec2 uv;\n\
 	void main(){\
-		gl_Position.xyz = myPos;\
+		gl_Position.xy = coordBase + myPos.xy * coordTransform;\
+		gl_Position.z = myPos.z;\n\
 		gl_Position.w = 1.0;\
-		uv = coordBase + myPos.xy * coordTransform;\n\
+		uv = texPos;\n\
 	}\
 	";
 
-	GLuint loadShader2(string FragmentShaderCode) {
+	GLuint loadShader2(string VertexShaderCode, string FragmentShaderCode) {
 		// Create the shaders
 		GLuint VertexShaderID = glCreateShader(GL_VERTEX_SHADER);
 		GLuint FragmentShaderID = glCreateShader(GL_FRAGMENT_SHADER);
@@ -46,7 +50,7 @@ namespace ytpmv {
 		
 		// Compile Vertex Shader
 		fprintf(stderr, "Compiling vertex shader\n");
-		char const * VertexSourcePointer = VertexShaderCode2.c_str();
+		char const * VertexSourcePointer = VertexShaderCode.c_str();
 		glShaderSource(VertexShaderID, 1, &VertexSourcePointer , NULL);
 		glCompileShader(VertexShaderID);
 
@@ -158,35 +162,30 @@ namespace ytpmv {
 			uniform float secondsAbs;\n\
 			uniform float secondsRel; \n\
 			uniform sampler2D image;\n\
-			uniform float extraParams[" + to_string(maxParams) + "];\n";
+			uniform float userParams[" + to_string(maxParams) + "];\n";
 		
 		
 		// returns the user parameter i for the current renderer invocation
 		shader +=
 			"float param(int i){ \n\
-				return extraParams[i];\n\
+				return userParams[i];\n\
 			}\n";
 		
 		shader += "vec4 renderFunc(vec2 pos) {\n"
 					+ code + "\n}";
+		shader += "void main(){ \n\
+						color = renderFunc(uv);\n\
+					}\n";
 		return shader;
 	}
-	void FrameRenderer2::setRenderers(vector<string> code, int maxConcurrent, int maxParams) {
+	void FrameRenderer2::setRenderers(vector<string> shaders, int maxConcurrent, int maxParams) {
 		this->maxParams = maxParams;
 		this->maxConcurrent = maxConcurrent;
-		programID.resize(code.size());
-		for(int i=0; i<(int)code.size(); i++) {
-			string shader = FrameRenderer2_generateCode(code[i], maxParams);
-			
-			// main function
-			shader +=
-				"void main(){ \n\
-					vec4 tmp;\n\
-					color = renderFunc(uv);\n\
-				}\n";
-
-			//fprintf(stderr, "%s\n", shader.c_str());;
-			programID.at(i) = loadShader2(shader);
+		
+		int programs = (int)shaders.size()/2;
+		programID.resize(programs);
+		for(int i=0; i<programs; i++) {
+			programID.at(i) = loadShader2(shaders[i*2], shaders[i*2+1]);
 			
 			glUseProgram(programID.at(i));
 			GLint loc = glGetUniformLocation(programID.at(i), "resolution");
@@ -199,6 +198,12 @@ namespace ytpmv {
 	}
 	void FrameRenderer2::setEnabledRenderers(vector<int> enabledRenderers) {
 		this->enabledRenderers = enabledRenderers;
+		vertexes.resize(enabledRenderers.size());
+		vertexVariableSizes.resize(enabledRenderers.size());
+		for(int i=0; i<(int)vertexes.size(); i++) {
+			vertexes[i] = nullptr;
+			vertexVariableSizes[i] = nullptr;
+		}
 	}
 	void FrameRenderer2::setUserParams(vector<vector<float> > params) {
 		assert(int(params.size()) <= maxConcurrent);
@@ -263,34 +268,83 @@ namespace ytpmv {
 			this->images[i] = textureUnit;
 		}
 	}
-	void FrameRenderer2::setTime(float secondsAbs, const float* secondsRel) {
+	void FrameRenderer2::setTime(float secondsAbs, const vector<float>& secondsRel) {
 		this->secondsAbs = secondsAbs;
-		this->secondsRel = vector<float>(secondsRel, secondsRel+enabledRenderers.size());
+		this->secondsRel = secondsRel;
+	}
+	void FrameRenderer2::setVertexes(int invocation, const vector<float>& vertexArray, const int* varSizes) {
+		vertexes.at(invocation) = &vertexArray;
+		vertexVariableSizes.at(invocation) = varSizes;
 	}
 	void FrameRenderer2::draw() {
+		glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1.0f, 0.0f, 20.0f);
+		
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
 		// 1st attribute buffer : vertices
 		glEnableVertexAttribArray(0);
+		glEnableVertexAttribArray(1);
 		glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+		
+		// copy vertex data into buffer
+		int N = (int)enabledRenderers.size();
+		vector<float> vertexBuffer;
+		for(int i=0; i<N; i++) {
+			const vector<float>& tmp = *vertexes.at(i);
+			vertexBuffer.reserve(vertexBuffer.size() + tmp.size());
+			vertexBuffer.insert(vertexBuffer.end(),tmp.begin(),tmp.end());
+		}
+		glBufferData(GL_ARRAY_BUFFER, vertexBuffer.size()*sizeof(float),
+					vertexBuffer.data(), GL_STATIC_DRAW);
+		
+		
+		
+		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_BLEND);
 		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glVertexAttribPointer(
-		   0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
-		   3,                  // size
-		   GL_FLOAT,           // type
-		   GL_FALSE,           // normalized?
-		   0,                  // stride
-		   (void*)0            // array buffer offset
-		);
+		glDepthFunc(GL_LEQUAL);    // Set the type of depth-test
+		//glShadeModel(GL_SMOOTH);   // Enable smooth shading
+		//glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);  // Nice perspective corrections
+		
 		assert(glGetError()==GL_NO_ERROR);
 		
-		for(int i=0; i<(int)enabledRenderers.size(); i++) {
+		int vertexOffs = 0;
+		for(int i=0; i<N; i++) {
+			const vector<float>& vert = *vertexes.at(i);
+			const int* varSizes = vertexVariableSizes.at(i);
 			int j = enabledRenderers[i];
 			glUseProgram(programID.at(j));
+			
+			// set vertexes
+			
+			// calculate number of vertexes
+			int totalVarSize = 0;
+			for(int varIndex=0; varSizes[varIndex] != 0; varIndex++)
+				totalVarSize += varSizes[varIndex];
+			int nVertex = int(vert.size()) / totalVarSize;
+			
+			//fprintf(stderr, "nVertex %d\n", nVertex);
+			
+			int varOffs = vertexOffs;
+			for(int varIndex=0; varSizes[varIndex] != 0; varIndex++) {
+				int varSize = varSizes[varIndex];
+				//fprintf(stderr, "glVertexAttribPointer %d %d %d\n", varIndex, varSize, varOffs);
+				glVertexAttribPointer(
+				   varIndex,           // variable id. must match the "layout" of the variable in the shader.
+				   varSize,            // number of elements per vertex
+				   GL_FLOAT,           // type
+				   GL_FALSE,           // normalized?
+				   totalVarSize * sizeof(float),       // stride
+				   (void*)(varOffs * sizeof(float))	   // array buffer offset
+				);
+				varOffs += varSize;
+			}
+			
+			assert(glGetError()==GL_NO_ERROR);
+			
 			// set parameters
 			if(userParams.size() > i) {
-				GLint loc = glGetUniformLocation(programID.at(j), "extraParams");
+				GLint loc = glGetUniformLocation(programID.at(j), "userParams");
 				if(loc >= 0) glUniform1fv(loc, userParams.at(i).size(), userParams.at(i).data());
 			}
 			// set image
@@ -305,8 +359,15 @@ namespace ytpmv {
 				if(loc >= 0) glUniform1f(loc, secondsRel.at(i));
 				if(loc2 >= 0) glUniform1f(loc2, secondsAbs);
 			}
+			// set transform matrix
+			{
+				GLint loc = glGetUniformLocation(programID.at(j), "proj");
+				if(loc >= 0) glUniformMatrix4fv(loc, 1, false, glm::value_ptr(proj));
+			}
 			// draw
-			glDrawArrays(GL_TRIANGLES, 0, 6); // 6 vertices
+			glDrawArrays(GL_TRIANGLES, 0, nVertex);
+			
+			vertexOffs += vert.size();
 		}
 		glDisableVertexAttribArray(0);
 		assert(glGetError()==GL_NO_ERROR);
@@ -324,17 +385,17 @@ namespace ytpmv {
 		return ret;
 	}
 	void FrameRenderer2::setRenderToScreen() {
-		float mat[6] = {0.5, 0.,
-						0., -0.5,
-						0.5, 0.5};
+		float mat[6] = {1., 0.,
+						0., -1.,
+						0., 0.};
 		setTransform(mat);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		assert(glGetError()==GL_NO_ERROR);
 	}
 	void FrameRenderer2::setRenderToInternal() {
-		float mat[6] = {0.5, 0.,
-						0., 0.5,
-						0.5, 0.5};
+		float mat[6] = {1., 0.,
+						0., 1.,
+						0., 0.};
 		setTransform(mat);
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		assert(glGetError()==GL_NO_ERROR);

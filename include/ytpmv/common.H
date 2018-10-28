@@ -11,6 +11,8 @@ using namespace std;
 namespace ytpmv {
 	// number of (interleaved) channels in all in-memory sample data
 	static constexpr int CHANNELS=2;
+	// maximum number of user parameters in a shader
+	static constexpr int MAXUSERPARAMS=16;
 	
 	struct Time {
 		// number of patterns full before this note
@@ -118,43 +120,18 @@ namespace ytpmv {
 		vector<AudioKeyFrame> keyframes;
 		
 		AudioSegment() {}
-		AudioSegment(const Note& n, const Instrument& ins, double bpm) {
-			startSeconds = n.start.absRow*60/bpm;
-			endSeconds = n.end.absRow*60/bpm;
-			pitch = pow(2,(n.pitchSemitones + ins.tuningSemitones)/12.);
-			if(pitch<1.) tempo = pitch;
-			else tempo = sqrt(pitch);
-			for(int k=0; k<CHANNELS; k++)
-				amplitude[k] = pow(10,n.amplitudeDB/20.);
-			sampleData = ins.sampleData.data();
-			sampleLength = ins.sampleData.length();
-			copyKeyFrames(n.keyframes, pow(2,ins.tuningSemitones/12.), bpm);
-		}
-		AudioSegment(const Note& n, const AudioSource& src, double bpm) {
-			startSeconds = n.start.absRow*60/bpm;
-			endSeconds = n.end.absRow*60/bpm;
-			pitch = pow(2,n.pitchSemitones/12.) * src.pitch;
-			tempo = src.tempo;
-			for(int k=0; k<CHANNELS; k++)
-				amplitude[k] = pow(10,n.amplitudeDB/20.);
-			sampleData = src.sample.data();
-			sampleLength = src.sample.length();
-			copyKeyFrames(n.keyframes, src.pitch, bpm);
-		}
-		void copyKeyFrames(const vector<NoteKeyFrame>& kfs, double pitch, double bpm) {
-			for(const NoteKeyFrame& kf: kfs) {
-				AudioKeyFrame kf2;
-				kf2.relTimeSeconds = kf.relTimeRows*60/bpm;
-				for(int k=0; k<CHANNELS; k++)
-					kf2.amplitude[k] = pow(10,kf.amplitudeDB/20.);
-				kf2.pitch = pow(2,kf.pitchSemitones/12.) * pitch;
-				keyframes.push_back(kf2);
-			}
-		}
+		AudioSegment(const Note& n, const Instrument& ins, double bpm);
+		AudioSegment(const Note& n, const AudioSource& src, double bpm);
+		
+		void copyKeyFrames(const vector<NoteKeyFrame>& kfs, double pitch, double bpm);
+		
 		double durationSeconds() const {
 			return endSeconds - startSeconds;
 		}
 	};
+	
+	vector<float> genRectangle(float x1, float y1, float x2, float y2);
+	vector<float> genRectangle(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3);
 	
 	struct VideoKeyFrame {
 		// time of this keyframe relative to segment start
@@ -167,6 +144,18 @@ namespace ytpmv {
 		double startSeconds, endSeconds;
 		double speed; // 1 => original speed
 		
+		// array holding all vertex attributes;
+		// layout is:
+		// V0var0_0, V0var0_1, V0var0_2, V0var1_0, V0var1_1, V1var0_0, ...
+		// (vertex variables are interleaved)
+		vector<float> vertexes;
+		
+		// number of elements in each vertex attribute variable; null terminated
+		// e.g. {3, 2, 0} for a x,y,z vertex coordinate and a x,y texture coordinate
+		int vertexVarSizes[8];
+		
+		
+		// OLD API. DO NOT USE. use vertexShader and fragmentShader instead.
 		// a function body that returns a vec4 (a,r,g,b) value;
 		// parameters passed in are:
 		// - pos: vec2; absolute coordinates (x,y) from 0.0 to 1.0
@@ -177,6 +166,30 @@ namespace ytpmv {
 		// functions accessible are:
 		// - float param(int i); returns user parameter i
 		string shader;
+		
+		// the full vertex shader code; if blank, the default pass-through shader is used
+		// variables available:
+		/*
+			uniform vec2 coordBase;
+			uniform mat2 coordTransform;
+			smooth out vec2 uv;
+		 */
+		string vertexShader;
+		
+		// the full fragment shader code; if blank, .shader will be used
+		// variables available (to use, you need to declare these in your shader code):
+		/* 
+		    in vec4 gl_FragCoord;		// absolute coordinates in pixels
+			smooth in vec2 uv;			// relative coordinates, supplied by vertex shader
+			out vec4 color;				// pixel output (r,g,b,a)
+		    uniform vec2 resolution;	// screen resolution in pixels
+			uniform float secondsAbs;	// seconds since start of video
+			uniform float secondsRel;	// seconds since start of segment
+			uniform sampler2D image;	// a frame from the supplied video
+			uniform float userParams[MAXUSERPARAMS];	// user parameters
+		 */
+		string fragmentShader;
+		
 		// user parameters
 		vector<float> shaderParams;
 		const Image* source;
@@ -186,14 +199,8 @@ namespace ytpmv {
 		vector<VideoKeyFrame> keyframes;
 		
 		VideoSegment() {}
-		VideoSegment(const Note& n, const VideoSource& src, double bpm) {
-			startSeconds = n.start.absRow*60/bpm;
-			endSeconds = n.end.absRow*60/bpm;
-			speed = 1.;
-			source = src.frames.data();
-			sourceFrames = src.frames.size();
-			zIndex = 0;
-		}
+		VideoSegment(const Note& n, const VideoSource& src, double bpm);
+		
 		double durationSeconds() const {
 			return endSeconds - startSeconds;
 		}
@@ -205,15 +212,6 @@ namespace ytpmv {
 		double skipToSeconds=0.;
 	};
 	
-	inline std::string get_file_contents(const char *filename) {
-		std::ifstream in(filename, std::ios::in | std::ios::binary);
-		if(in) {
-			std::ostringstream contents;
-			contents << in.rdbuf();
-			in.close();
-			return(contents.str());
-		}
-		throw(errno);
-	}
+	std::string get_file_contents(const char *filename);
 }
 #endif

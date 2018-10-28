@@ -16,7 +16,10 @@ namespace ytpmv {
 		VideoRendererTimeDriven(const vector<VideoSegment>& segments, int w, int h, double fps, double systemFPS);
 		~VideoRendererTimeDriven();
 		
+		// draw current frame
 		void drawFrame();
-		void advanceTo(int frame);
+		
+		// returns true if we are still within bounds of the video
+		bool advanceTo(int frame);
 	};
 };
