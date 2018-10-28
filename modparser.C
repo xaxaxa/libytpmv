@@ -64,7 +64,7 @@ namespace ytpmv {
 				//printf("%5d %5x    ", notePeriod, instrumentID);
 				
 				
-				if(effect == 0xC00) {
+				if(effect == 0xC00 || effect == 0xEC0) {
 					// note off
 					ps.activeNotes.at(channel) = -1;
 					continue;
