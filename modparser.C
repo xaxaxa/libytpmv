@@ -91,12 +91,12 @@ namespace ytpmv {
 					double semitones = log2(frequencyNormalized)*12.;
 					
 					// append or update note
-				
-					double dB = ps.defaultVolumes.at(instrumentID);
+					
+					if(instrumentID == 0) instrumentID = ps.lastInstrument.at(channel);
+					double dB = ps.defaultVolumes.at(instrumentID-1);
 					if((effect & 0xf00) == 0xC00) {
 						dB = log10(double(effect&0xff)/64.)*20;
 					}
-					if(instrumentID == 0) instrumentID = ps.lastInstrument.at(channel);
 					Note n;
 					n.start = {ps.curSeq, ps.curRow, ps.curRowAbs, 0.};
 					n.end = {ps.curSeq, ps.curRow+1, ps.curRowAbs+1, 0.};
