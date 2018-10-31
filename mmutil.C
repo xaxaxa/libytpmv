@@ -309,7 +309,95 @@ namespace ytpmv {
 			Image img = {width,height,string(((char*)out_data) + i, imgBytes)};
 			vs.frames.push_back(img);
 		}
+		g_object_unref(stream);
 		return vs;
+	}
+	
+	// FIXME(xaxaxa): UGLY!!!!!! does not clean up gstreamer pipeline properly
+	void* runLoopThread(void* v) {
+		GMainLoop* loop = (GMainLoop*)v;
+		g_main_loop_run(loop);
+	}
+	// BUG(xaxaxa): this code is really awful both in terms of efficiency and structure;
+	// there are 3 data copies of the video data made: write() to pipe, read() from pipe,
+	// and when the image is copied into the texture. 
+	// To fix this properly it is necessary to write a custom gstreamer element (ew).
+	// There is no way to get video width and height. To fix that you need to listen for some sort of event
+	// on the gstreamer event loop.
+	void loadVideoToFD(const char* file, int fd) {
+		GstElement *pipeline, *source, *decode, *sink, *convert;
+		GMainLoop *loop;
+		GstBus *bus;
+		guint bus_watch_id;
+
+		// loop
+		loop = g_main_loop_new(NULL, false);
+		// pipeline
+		pipeline = gst_pipeline_new("test_pipeline");
+		// sink
+		sink = gst_element_factory_make ("fdsink", "sink");
+		g_object_set(G_OBJECT(sink), "fd", fd, NULL);
+		// source
+		source = gst_element_factory_make("filesrc", "source");
+		g_object_set(G_OBJECT(source), "location", file, NULL);
+		// convert
+		convert = gst_element_factory_make("videoconvert", "convert");
+		// decode
+		decode = gst_element_factory_make("decodebin", "decoder");
+		// link decode to convert
+		g_signal_connect(decode, "pad-added", G_CALLBACK(on_pad_added_video), convert);
+
+		// bus
+		bus = gst_pipeline_get_bus(GST_PIPELINE (pipeline));
+		bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
+		gst_object_unref(bus);
+
+		// add elements into pipeline
+		gst_bin_add_many(GST_BIN(pipeline), source, decode, convert, sink, NULL);
+		// link source to decode
+		gst_element_link(source, decode);
+		//gst_element_link(convert, sink);
+		// caps
+		GstCaps *caps;
+		caps = gst_caps_new_simple("video/x-raw",
+									"format", G_TYPE_STRING, "RGB",
+								   "interlace-mode", G_TYPE_STRING, "progressive",
+								   NULL);
+		// link convert to sink
+		gst_element_link_filtered(convert, sink, caps);
+		gst_caps_unref(caps);
+		// start playing
+		gst_element_set_state(GST_ELEMENT(pipeline), GST_STATE_PLAYING);
+
+		
+		// retrieve the dimensions of the video
+		/*GstPad* sinkPad = gst_element_get_static_pad (sink, "sink");
+		GstCaps* sinkCaps = gst_pad_get_current_caps (sinkPad);
+		GstStructure* sinkCapsStruct = gst_caps_get_structure(sinkCaps, 0);
+		fprintf(stderr, "pad caps: %s\n",  gst_caps_to_string (sinkCaps));
+		
+		if((!gst_structure_get_int (sinkCapsStruct, "width", &w))
+			|| (!gst_structure_get_int (sinkCapsStruct, "height", &h))) {
+			throw runtime_error(string("No Width/Height are Available in the Incoming Stream Data !! file: ") + file + "\n");
+		}
+		fprintf(stderr, "dimensions: %d x %d\n", w, h);*/
+
+		// iterate
+		fprintf(stderr, "RUNNING GSTREAMER PIPELINE FOR VIDEO: %s\n", file);
+		//g_main_loop_run(loop);
+		
+		pthread_t pth;
+		pthread_create(&pth, nullptr, runLoopThread, loop);
+		
+		/*
+		// out of the main loop, clean up nicely
+		fprintf(stderr, "Returned, stopping playback\n");
+		gst_element_set_state(pipeline, GST_STATE_NULL);
+
+		fprintf(stderr, "Deleting pipeline\n");
+		gst_object_unref(GST_OBJECT(pipeline));
+		g_source_remove (bus_watch_id);
+		g_main_loop_unref(loop);*/
 	}
 	
 	void encodeVideo(int audioFD, int videoFD, int w, int h, double fps, int srate, int outFD) {
