@@ -33,52 +33,76 @@ namespace ytpmv {
 		}
 	};
 	
-	uint64_t shaderKey(const string& shader, const string& vertexShader, const string& fragmentShader) {
-		return ((uint64_t)shader.data()) ^ ((uint64_t)vertexShader.data()) ^ ((uint64_t)fragmentShader.data());
+	// returns a fast key based on the addresses of the shader strings
+	uint64_t shaderKey(const string* shader, const string* vertexShader, const string* fragmentShader) {
+		return ((uint64_t)shader) ^ ((uint64_t)vertexShader) ^ ((uint64_t)fragmentShader);
 	}
 	uint64_t shaderKey(const VideoSegment& seg) {
 		return shaderKey(seg.shader, seg.vertexShader, seg.fragmentShader);
 	}
-
-	void renderVideo(const vector<VideoSegment>& segments, double fps, int w, int h, function<void(uint8_t* data)> writeFrame) {
-		FrameRenderer fr(w,h);
+	// returns a hashed key based on the shader text body
+	size_t shaderHashKey(const VideoSegment& seg) {
+		size_t ret = 0;
+		hash<string> hashFn;
+		if(seg.shader != nullptr) ret ^= hashFn(*seg.shader);
+		if(seg.vertexShader != nullptr) ret ^= hashFn(*seg.vertexShader);
+		if(seg.fragmentShader != nullptr) ret ^= hashFn(*seg.fragmentShader);
+		return ret;
+	}
+	
+	class ShaderProgramCache {
+	public:
 		vector<string> shaders;
 		unordered_map<size_t, int> shaderIDs;
 		unordered_map<uint64_t, int> shaderIDs2;
-		hash<std::string> hashFn;
 		
-		// find all used shader code strings
-		int nextIndex = 0;
-		int i=-1;
-		for(const VideoSegment& seg: segments) {
-			i++;
-			// we identify a segment's shader program by the tuple (shader, vertexShader, fragmentShader);
-			// if several segments have the same tuple then the shader program can be reused.
-			uint64_t key = shaderKey(seg);
-			if(shaderIDs2.find(key) != shaderIDs2.end()) continue;
-			
-			size_t hashKey = hashFn(seg.shader + seg.vertexShader + seg.fragmentShader);
-			if(shaderIDs.find(hashKey) != shaderIDs.end()) {
-				shaderIDs2[key] = shaderIDs[hashKey];
-				continue;
+		void buildCache(const vector<VideoSegment>& segments) {
+			// find all used shader code strings
+			int nextIndex = 0;
+			int i=-1;
+			for(const VideoSegment& seg: segments) {
+				i++;
+				// we identify a segment's shader program by the tuple (shader, vertexShader, fragmentShader);
+				// if several segments have the same tuple then the shader program can be reused.
+				uint64_t key = shaderKey(seg);
+				if(shaderIDs2.find(key) != shaderIDs2.end()) continue;
+				
+				size_t hashKey = shaderHashKey(seg);
+				if(shaderIDs.find(hashKey) != shaderIDs.end()) {
+					shaderIDs2[key] = shaderIDs[hashKey];
+					continue;
+				}
+				if(seg.shader == nullptr && seg.fragmentShader == nullptr) {
+					throw logic_error("segment " + to_string(i) + " does not have shader code");
+				}
+				shaderIDs[hashKey] = nextIndex;
+				shaderIDs2[key] = nextIndex;
+				
+				if(seg.vertexShader == nullptr)
+					shaders.push_back(defaultVertexShader);
+				else shaders.push_back(*seg.vertexShader);
+				
+				if(seg.fragmentShader == nullptr)
+					shaders.push_back(FrameRenderer2_generateCode(*seg.shader, MAXUSERPARAMS));
+				else shaders.push_back(*seg.fragmentShader);
+				
+				nextIndex++;
 			}
-			if(seg.shader == "" && seg.fragmentShader == "") {
-				throw logic_error("segment " + to_string(i) + " does not have shader code");
-			}
-			shaderIDs[hashKey] = nextIndex;
-			shaderIDs2[key] = nextIndex;
-			
-			if(seg.vertexShader == "")
-				shaders.push_back(defaultVertexShader);
-			else shaders.push_back(seg.vertexShader);
-			
-			if(seg.fragmentShader == "")
-				shaders.push_back(FrameRenderer2_generateCode(seg.shader, MAXUSERPARAMS));
-			else shaders.push_back(seg.fragmentShader);
-			
-			nextIndex++;
+			fprintf(stderr, "%d unique shader keys\n", (int)shaderIDs2.size());
+			fprintf(stderr, "%d shader programs\n", nextIndex);
 		}
-		fr.setRenderers(shaders);
+		int getShaderProgramIndex(const VideoSegment& seg) {
+			assert(shaderIDs2.find(shaderKey(seg)) != shaderIDs2.end());
+			return shaderIDs2[shaderKey(seg)];
+		}
+	};
+
+	void renderVideo(const vector<VideoSegment>& segments, double fps, int w, int h, function<void(uint8_t* data)> writeFrame) {
+		FrameRenderer fr(w,h);
+		ShaderProgramCache shaderCache;
+		
+		shaderCache.buildCache(segments);
+		fr.setRenderers(shaderCache.shaders);
 		
 		// convert note list into note event list
 		vector<NoteEventV> events;
@@ -127,8 +151,7 @@ namespace ytpmv {
 			vector<vector<float> > params;
 			for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 				const VideoSegment& s = segments.at((*it).first);
-				int shaderID = shaderIDs2[shaderKey(s)];
-				enabledRenderers.push_back(shaderID);
+				enabledRenderers.push_back(shaderCache.getShaderProgramIndex(s));
 				params.push_back(s.shaderParams);
 			}
 			fr.setEnabledRenderers(enabledRenderers);
@@ -142,9 +165,8 @@ namespace ytpmv {
 			}
 			
 			// render frames in this region
-			vector<const Image*> images;
-			vector<float> relTimeSeconds(fr.maxConcurrent);
-			images.resize(notesActive.size());
+			vector<float> relTimeSeconds(notesActive.size());
+			vector<uint32_t> textures(notesActive.size());
 			for(int j=0; j<durationFrames; j++) {
 				int k=0;
 				double timeSeconds = double(curTimeFrames+j)/fps;
@@ -152,11 +174,16 @@ namespace ytpmv {
 					const VideoSegment& seg = segments.at((*it).first);
 					double t = timeSeconds-seg.startSeconds;
 					
-					int srcFrameNum = (int)round(t*fps*seg.speed);
-					if(srcFrameNum >= seg.sourceFrames) srcFrameNum = seg.sourceFrames-1;
-					if(srcFrameNum < 0) srcFrameNum = 0;
-					
-					images[k] = &seg.source[srcFrameNum];
+					if(seg.source == nullptr) {
+						// this is a dynamic source; call the lambda function to get image
+						textures[k] = seg.getTexture(seg, t*seg.speed);
+						fr.setImage(k, textures[k]);
+					} else {
+						int srcFrameNum = (int)round(t*fps*seg.speed);
+						if(srcFrameNum >= seg.sourceFrames) srcFrameNum = seg.sourceFrames-1;
+						if(srcFrameNum < 0) srcFrameNum = 0;
+						fr.setImage(k, seg.source[srcFrameNum]);
+					}
 					relTimeSeconds[k] = float(t);
 					
 					// find current keyframe
@@ -165,13 +192,21 @@ namespace ytpmv {
 							params.at(k) = kf.shaderParams;
 						else break;
 					}
-					
 					k++;
 				}
 				fr.setTime(float(timeSeconds), relTimeSeconds);
-				fr.setImages(images);
 				fr.setUserParams(params);
 				string imgData = fr.render();
+				
+				// release textures
+				k=0;
+				for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
+					const VideoSegment& seg = segments.at((*it).first);
+					if(seg.source == nullptr && seg.releaseTexture != nullptr)
+						seg.releaseTexture(seg, textures[k]);
+					k++;
+				}
+				
 				writeFrame((uint8_t*)imgData.data());
 			}
 		}
@@ -186,10 +221,7 @@ namespace ytpmv {
 		int curFrame;
 		
 		vector<NoteEventV> events;
-		vector<string> shaders;
-		unordered_map<size_t, int> shaderIDs;
-		unordered_map<int64_t, int> shaderIDs2;
-		
+		ShaderProgramCache shaderCache;
 		
 		
 		map<int, int, SegmentCompare> notesActive; // map from note index to start time in frames
@@ -199,41 +231,10 @@ namespace ytpmv {
 			notesActive(SegmentCompare(segments)) {
 			
 			lastEventIndex = 0;
-			curFrame = -1;
+			curFrame = INT_MIN;
 			
-			// find all used shader code strings
-			hash<string> hashFn;
-			int nextIndex = 0;
-			int i=-1;
-			for(const VideoSegment& seg: segments) {
-				i++;
-				// we identify a segment's shader program by the tuple (shader, vertexShader, fragmentShader);
-				// if several segments have the same tuple then the shader program can be reused.
-				uint64_t key = shaderKey(seg);
-				if(shaderIDs2.find(key) != shaderIDs2.end()) continue;
-				
-				size_t hashKey = hashFn(seg.shader + seg.vertexShader + seg.fragmentShader);
-				if(shaderIDs.find(hashKey) != shaderIDs.end()) {
-					shaderIDs2[key] = shaderIDs[hashKey];
-					continue;
-				}
-				if(seg.shader == "" && seg.fragmentShader == "") {
-					throw logic_error("segment " + to_string(i) + " does not have shader code");
-				}
-				shaderIDs[hashKey] = nextIndex;
-				shaderIDs2[key] = nextIndex;
-				
-				if(seg.vertexShader == "")
-					shaders.push_back(defaultVertexShader);
-				else shaders.push_back(seg.vertexShader);
-				
-				if(seg.fragmentShader == "")
-					shaders.push_back(FrameRenderer2_generateCode(seg.shader, MAXUSERPARAMS));
-				else shaders.push_back(seg.fragmentShader);
-				
-				nextIndex++;
-			}
-			fr.setRenderers(shaders);
+			shaderCache.buildCache(segments);
+			fr.setRenderers(shaderCache.shaders);
 			
 			// convert note list into note event list
 			for(int i=0;i<(int)segments.size();i++) {
@@ -254,26 +255,33 @@ namespace ytpmv {
 			// draw to screen
 			fr.setRenderToScreen();
 		}
-		void drawFrame() {
+		string drawFrame(bool render = false) {
+			string ret;
 			int k=0;
 			double timeSeconds = curFrame/fps;
-			vector<const Image*> images;
-			vector<float> relTimeSeconds(fr.maxConcurrent);
-			assert(int(notesActive.size()) <= fr.maxConcurrent);
+			vector<float> relTimeSeconds(notesActive.size());
+			vector<uint32_t> textures(notesActive.size());
 			
-			images.resize(notesActive.size());
 			for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 				const VideoSegment& seg = segments.at((*it).first);
 				
 				// find source frame
 				double relTime = timeSeconds-seg.startSeconds;
-				int segStartFrame = (int)round(seg.startSeconds*fps);
-				double srcSpeedMultiplier = systemFPS/fps;
-				int srcFrameNum = (int)round((curFrame-segStartFrame)*seg.speed*srcSpeedMultiplier);
-				if(srcFrameNum >= seg.sourceFrames) srcFrameNum = seg.sourceFrames-1;
+				
+				if(seg.source == nullptr) {
+					// this is a dynamic source; call the lambda function to get image
+					textures[k] = seg.getTexture(seg, relTime*seg.speed);
+					fr.setImage(k, textures[k]);
+				} else {
+					int segStartFrame = (int)round(seg.startSeconds*fps);
+					double srcSpeedMultiplier = systemFPS/fps;
+					int srcFrameNum = (int)round((curFrame-segStartFrame)*seg.speed*srcSpeedMultiplier);
+					if(srcFrameNum >= seg.sourceFrames) srcFrameNum = seg.sourceFrames-1;
+					if(srcFrameNum < 0) srcFrameNum = 0;
+					fr.setImage(k, seg.source[srcFrameNum]);
+				}
 				
 				// set parameters
-				images[k] = &seg.source[srcFrameNum];
 				relTimeSeconds[k] = float(timeSeconds-seg.startSeconds);
 				
 				// find current keyframe
@@ -285,15 +293,25 @@ namespace ytpmv {
 				k++;
 			}
 			fr.setTime(float(timeSeconds), relTimeSeconds);
-			fr.setImages(images);
 			fr.setUserParams(curUserParams);
-			fr.draw();
+			if(render) ret = fr.render();
+			else fr.draw();
+			
+			// release textures
+			k=0;
+			for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
+				const VideoSegment& seg = segments.at((*it).first);
+				if(seg.source == nullptr && seg.releaseTexture != nullptr)
+					seg.releaseTexture(seg, textures[k]);
+				k++;
+			}
+			return ret;
 		}
 		// returns true if we are still within bounds of the video
 		bool advanceTo(int frame) {
-			frame += events[0].t;
-			
 			if(frame <= curFrame) return true;
+			
+			bool encounteredEvent = false;
 			//fprintf(stderr, "%d events\n", (int)events.size());
 			// go through events until one beyond the requested frame is encountered
 			while(lastEventIndex < (int)events.size()) {
@@ -312,27 +330,7 @@ namespace ytpmv {
 						notesActive.erase(evt.segmentIndex);
 						fprintf(stderr, "videoclip off:%5d\n", evt.segmentIndex);
 					}
-					// collect renderers and parameters for this region
-					vector<int> enabledRenderers;
-					int lastZIndex = -(1<<29);
-					curUserParams.clear();
-					for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
-						const VideoSegment& s = segments.at((*it).first);
-						int shaderID = shaderIDs2[shaderKey(s)];
-						enabledRenderers.push_back(shaderID);
-						curUserParams.push_back(s.shaderParams);
-						assert(s.zIndex >= lastZIndex);
-						lastZIndex = s.zIndex;
-					}
-					fr.setEnabledRenderers(enabledRenderers);
-					fr.setUserParams(curUserParams);
-					
-					int i=0;
-					for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
-						const VideoSegment& s = segments.at((*it).first);
-						fr.setVertexes(i, s.vertexes, s.vertexVarSizes);
-						i++;
-					}
+					encounteredEvent = true;
 				}
 				lastEventIndex++;
 			}
@@ -343,9 +341,44 @@ namespace ytpmv {
 			if(lastEventIndex >= (int(events.size())-1)) return false;
 			
 			curFrame = frame;
+			
+			if(encounteredEvent) {
+				// collect renderers and parameters for this region
+				vector<int> enabledRenderers;
+				int lastZIndex = -(1<<29);
+				curUserParams.clear();
+				for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
+					const VideoSegment& s = segments.at((*it).first);
+					
+					enabledRenderers.push_back(shaderCache.getShaderProgramIndex(s));
+					curUserParams.push_back(s.shaderParams);
+					assert(s.zIndex >= lastZIndex);
+					lastZIndex = s.zIndex;
+				}
+				fr.setEnabledRenderers(enabledRenderers);
+				fr.setUserParams(curUserParams);
+				
+				int i=0;
+				for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
+					const VideoSegment& s = segments.at((*it).first);
+					fr.setVertexes(i, s.vertexes, s.vertexVarSizes);
+					i++;
+				}
+			}
 			return true;
 		}
 	};
+	
+	void renderVideo2(const vector<VideoSegment>& segments, double fps, double startSeconds, int w, int h, function<void(uint8_t* data)> writeFrame) {
+		VideoRendererState r(segments, w, h, fps, fps);
+		int frame = (int)round(startSeconds*fps);
+		r.fr.setRenderToInternal();
+		while(r.advanceTo(frame)) {
+			string tmp = r.drawFrame(true);
+			writeFrame((uint8_t*)tmp.data());
+			frame++;
+		}
+	}
 	
 	VideoRendererTimeDriven::VideoRendererTimeDriven(const vector<VideoSegment>& segments, int w, int h, double fps, double systemFPS) {
 		st = new VideoRendererState(segments,w,h,fps,systemFPS);

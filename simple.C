@@ -59,6 +59,19 @@ namespace ytpmv {
 		}
 	}
 	
+	double findStart(const vector<AudioSegment>& segments) {
+		double start = 1e10;
+		for(auto& s: segments)
+			if(s.startSeconds < start) start = s.startSeconds;
+		return start;
+	}
+	double findStart(const vector<VideoSegment>& segments) {
+		double start = 1e10;
+		for(auto& s: segments)
+			if(s.startSeconds < start) start = s.startSeconds;
+		return start;
+	}
+	
 	class Player {
 	public:
 		// not the real fps; only the video time resolution of the video renderer
@@ -78,6 +91,17 @@ namespace ytpmv {
 		// playback time in microseconds
 		volatile uint64_t offsetClockTimeMicros;
 		
+		
+		/*
+		 *   |        [videosegment] [videosegment] ...
+		 *   |                    [audiosegment] [audiosegment] ...
+		 *   |        |           |
+		 *  t=0   videoStart   audioStart
+		 *  t=0   playStart
+		 * */
+		
+		double playStart=0., audioStart=0., videoStart=0.;
+		
 		const vector<AudioSegment>& audioSegments;
 		VideoRendererTimeDriven* videoRenderer = nullptr;
 		
@@ -94,9 +118,15 @@ namespace ytpmv {
 			
 			offsetClockTimeMicros = getTimeMicros() + 10000000;
 			
+			audioStart = findStart(audio);
+			playStart = audioStart;
+			
 			if(video.size() > 0) {
 				window = initGLWindowed(w,h);
 				videoRenderer = new VideoRendererTimeDriven(video, w, h, fps, systemFPS);
+				
+				videoStart = findStart(video);
+				if(videoStart < playStart) playStart = videoStart;
 			}
 			
 			// open audio device
@@ -116,8 +146,16 @@ namespace ytpmv {
 			}
 		}
 		void audioThread() {
-			int64_t samplesWritten = 0;
-			renderAudio(audioSegments, srate, [this, &samplesWritten](float* data, int len) {
+			bool first = true;
+			int64_t samplesWritten = (int64_t)round(audioStart*srate);
+			renderAudio(audioSegments, srate, [&](float* data, int len) {
+				if(first) {
+					first = false;
+					uint64_t t = getTimeMicros();
+					uint64_t tPlayback = round(playStart*1e6);
+					offsetClockTimeMicros = t-tPlayback;
+					usleep((useconds_t)round((audioStart-playStart)*1e6));
+				}
 				uint64_t t = getTimeMicros();
 				uint64_t tPlayback = round(double(samplesWritten)*1e6/srate);
 				offsetClockTimeMicros = t-tPlayback;
@@ -141,7 +179,8 @@ namespace ytpmv {
 				int frame;
 				if(offs == 0) frame = 0;
 				else {
-					int64_t t = int64_t(getTimeMicros()) - offs - renderDelay;
+					int64_t t = int64_t(getTimeMicros() - offs);
+					t -= renderDelay;
 					frame = (int)round(double(t)*1e-6*fps);
 				}
 				
@@ -205,12 +244,18 @@ namespace ytpmv {
 		const PlaybackSettings* settings;
 		int w,h;
 		double fps;
+		double audioPadding;
 		int srate;
 	};
 	
 	void* renderAudioThread(void* v) {
 		renderInfo& inf = *(renderInfo*)v;
 		
+		int p = (int)round(inf.audioPadding*inf.srate*CHANNELS);
+		if(p > 0) {
+			string padding(p*sizeof(int16_t), 0);
+			write(inf.audioPipe[1],padding.data(),padding.length());
+		}
 		renderAudio(*inf.audio,inf.srate, [&inf](float* data, int len) {
 			int16_t buf[len];
 			for(int i=0;i<len;i++) {
@@ -233,6 +278,11 @@ namespace ytpmv {
 	void render(const vector<AudioSegment>& audio, const vector<VideoSegment>& video, const PlaybackSettings& settings) {
 		initGL(true);
 		
+		double audioStart = findStart(audio);
+		double videoStart = findStart(video);
+		double playStart = audioStart;
+		if(videoStart < playStart) playStart = videoStart;
+		
 		renderInfo inf;
 		assert(pipe(inf.audioPipe) == 0);
 		assert(pipe(inf.videoPipe) == 0);
@@ -243,7 +293,7 @@ namespace ytpmv {
 		inf.h = 1080;
 		inf.fps = 30;
 		inf.srate = 44100;
-		
+		inf.audioPadding = audioStart - playStart;
 		
 		
 		pthread_t th1, th2;
@@ -251,7 +301,7 @@ namespace ytpmv {
 		assert(pthread_create(&th2, NULL, &encodeVideoThread, &inf) == 0);
 		assert(pthread_create(&th1, NULL, &renderAudioThread, &inf) == 0);
 		
-		renderVideo(video, inf.fps, inf.w, inf.h, [&inf](uint8_t* data) {
+		renderVideo2(video, inf.fps, playStart, inf.w, inf.h, [&inf](uint8_t* data) {
 			write(inf.videoPipe[1],data,inf.w * inf.h * 4);
 		});
 		close(inf.videoPipe[1]);
@@ -288,6 +338,28 @@ namespace ytpmv {
 			play(audio, video, settings);
 			return 0;
 		}
+	}
+	
+	uint32_t createTexture() {
+		uint32_t tex = 0;
+		glGenTextures(1, &tex);
+		return tex;
+	}
+	void deleteTexture(uint32_t texture) {
+		glDeleteTextures(1, &texture);
+	}
+	void setTextureImage(uint32_t texture, void* image, int w, int h) {
+		glPixelStorei(GL_UNPACK_ALIGNMENT,4);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+		glGenerateMipmap(GL_TEXTURE_2D);
+		glBindTexture(GL_TEXTURE_2D, 0);
+		assert(glGetError()==GL_NO_ERROR);
 	}
 	
 	PlaybackSettings defaultSettings;

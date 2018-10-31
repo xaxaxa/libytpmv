@@ -40,6 +40,9 @@ namespace ytpmv {
 		
 		// called every frame
 		void setImages(const vector<const Image*>& images);
+		void setImage(int invocation, const Image& img);
+		void setImage(int invocation, int texture);
+		
 		void setTime(float secondsAbs, const vector<float>& secondsRel);
 		
 		// layout of the vertex array is:
@@ -81,7 +84,6 @@ namespace ytpmv {
 		int nextTextureUnit = 0;
 		
 		vector<int> enabledRenderers;
-		vector<int> images;
 		vector<vector<float> > userParams;
 		float secondsAbs;
 		vector<float> secondsRel;

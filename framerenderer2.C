@@ -210,63 +210,36 @@ namespace ytpmv {
 		userParams = params;
 	}
 	void FrameRenderer2::setImages(const vector<const Image*>& images) {
-		assert(int(images.size()) <= maxConcurrent);
-		int sz=(int)images.size();
-		this->images.resize(sz);
-		for(int i=0; i<sz; i++) {
-			const Image& img = *images[i];
-			const char* data = img.data.data();
-			
-			// select a texture unit
-			int textureUnit = -1;
-			if(persistTextureUnits) {
-				auto it = textureUnitMap.find(data);
-				if(it == textureUnitMap.end()) {
-					// select texture unit
-					textureUnit = nextTextureUnit++;
-					if(nextTextureUnit >= textureUnits) nextTextureUnit=0;
-					
-					// clear it
-					textureUnitMap.erase(textureUnitContents.at(textureUnit));
-					
-					// add to cache
-					textureUnitMap[data] = textureUnit;
-					textureUnitContents.at(textureUnit) = data;
-				} else {
-					textureUnit = (*it).second;
-					goto cont;
-				}
-				fprintf(stderr, "selected texture unit %d\n", textureUnit);
-			} else {
-				textureUnit = i;
-			}
-			
-			glActiveTexture(GL_TEXTURE0 + textureUnit);
-			
-			//int fuck=0;
-			//glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &fuck);
-			//fprintf(stderr, "%d\n", fuck);
-			
-			// texture cache
-			if(textures.find(img.data.data()) != textures.end()) {
-				glBindTexture(GL_TEXTURE_2D, textures[data]);
-				//fprintf(stderr, "CACHE HIT\n");
-				goto cont;
-			}
-			//fprintf(stderr, "CACHE MISS\n");
-			glGenTextures(1, &textures[img.data.data()]);
-			glBindTexture(GL_TEXTURE_2D, textures[img.data.data()]);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.w, img.h, 0, GL_RGB, GL_UNSIGNED_BYTE, img.data.data());
-			glGenerateMipmap(GL_TEXTURE_2D);
-			assert(glGetError()==GL_NO_ERROR);
-		
-		cont:
-			this->images[i] = textureUnit;
+		assert(images.size() == enabledRenderers.size());
+		for(int i=0; i<(int)images.size(); i++) {
+			setImage(i, *images[i]);
 		}
+	}
+	void FrameRenderer2::setImage(int invocation, const Image& img) {
+		const char* data = img.data.data();
+		
+		// select the texture unit
+		// start from unit 1 because unit 0 is reserved for image data transfers
+		glActiveTexture(GL_TEXTURE0 + invocation + 1);
+		
+		// texture cache
+		if(textures.find(img.data.data()) != textures.end()) {
+			glBindTexture(GL_TEXTURE_2D, textures[data]);
+			return;
+		}
+		glGenTextures(1, &textures[img.data.data()]);
+		glBindTexture(GL_TEXTURE_2D, textures[img.data.data()]);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.w, img.h, 0, GL_RGB, GL_UNSIGNED_BYTE, img.data.data());
+		glGenerateMipmap(GL_TEXTURE_2D);
+		assert(glGetError()==GL_NO_ERROR);
+	}
+	void FrameRenderer2::setImage(int invocation, int texture) {
+		glActiveTexture(GL_TEXTURE0 + invocation + 1);
+		glBindTexture(GL_TEXTURE_2D, texture);
 	}
 	void FrameRenderer2::setTime(float secondsAbs, const vector<float>& secondsRel) {
 		this->secondsAbs = secondsAbs;
@@ -281,9 +254,10 @@ namespace ytpmv {
 		
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
-		// 1st attribute buffer : vertices
+		
 		glEnableVertexAttribArray(0);
 		glEnableVertexAttribArray(1);
+		glEnableVertexAttribArray(2);
 		glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
 		
 		// copy vertex data into buffer
@@ -343,14 +317,14 @@ namespace ytpmv {
 			assert(glGetError()==GL_NO_ERROR);
 			
 			// set parameters
-			if(userParams.size() > i) {
+			if(int(userParams.size()) > i) {
 				GLint loc = glGetUniformLocation(programID.at(j), "userParams");
 				if(loc >= 0) glUniform1fv(loc, userParams.at(i).size(), userParams.at(i).data());
 			}
 			// set image
 			{
 				GLint loc = glGetUniformLocation(programID.at(j), "image");
-				glUniform1i(loc, this->images.at(i));
+				glUniform1i(loc, i+1); // see setImage()
 			}
 			// set time
 			{
@@ -369,7 +343,6 @@ namespace ytpmv {
 			
 			vertexOffs += vert.size();
 		}
-		glDisableVertexAttribArray(0);
 		assert(glGetError()==GL_NO_ERROR);
 	}
 	string FrameRenderer2::render() {
@@ -377,7 +350,7 @@ namespace ytpmv {
 		
 		string ret;
 		ret.resize(w*h*4);
-		glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+		glPixelStorei(GL_PACK_ALIGNMENT,4);
 		glReadPixels(0,0,w,h,  GL_RGBA,  GL_UNSIGNED_INT_8_8_8_8_REV, (void*)ret.data());
 		
 		assert(glGetError()==GL_NO_ERROR);

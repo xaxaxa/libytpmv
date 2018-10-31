@@ -7,6 +7,8 @@ namespace ytpmv {
 	// data is in RGBA32 format
 	void renderVideo(const vector<VideoSegment>& segments, double fps, int w, int h, function<void(uint8_t* data)> writeFrame);
 	
+	void renderVideo2(const vector<VideoSegment>& segments, double fps, double startSeconds, int w, int h, function<void(uint8_t* data)> writeFrame);
+	
 	// for realtime rendering; this allows skipping frames
 	class VideoRendererState;
 	class VideoRendererTimeDriven {

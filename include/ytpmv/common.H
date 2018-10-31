@@ -170,7 +170,7 @@ namespace ytpmv {
 		// - resolution: vec2; video resolution (w,h) in pixels
 		// functions accessible are:
 		// - float param(int i); returns user parameter i
-		string shader;
+		string* shader = nullptr;
 		
 		// the full vertex shader code; if blank, the default pass-through shader is used
 		// variables available:
@@ -179,7 +179,7 @@ namespace ytpmv {
 			uniform mat2 coordTransform;
 			smooth out vec2 uv;
 		 */
-		string vertexShader;
+		string* vertexShader = nullptr;
 		
 		// the full fragment shader code; if blank, .shader will be used
 		// variables available (to use, you need to declare these in your shader code):
@@ -193,13 +193,23 @@ namespace ytpmv {
 			uniform sampler2D image;	// a frame from the supplied video
 			uniform float userParams[MAXUSERPARAMS];	// user parameters
 		 */
-		string fragmentShader;
+		string* fragmentShader = nullptr;
 		
 		// user parameters
 		vector<float> shaderParams;
+		
+		// array of source images
 		const Image* source;
 		int sourceFrames;
 		int zIndex;
+		
+		// if source is null, this function is called every frame to retrieve an image;
+		// it should return an opengl texture number.
+		function<uint32_t(const VideoSegment& seg, double timeSeconds)> getTexture;
+		
+		// this function is called when the texture returned by getTexture is
+		// no longer needed.
+		function<void(const VideoSegment& seg, uint32_t texture)> releaseTexture;
 		
 		vector<VideoKeyFrame> keyframes;
 		

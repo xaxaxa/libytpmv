@@ -30,4 +30,11 @@ namespace ytpmv {
 	void play(const vector<AudioSegment>& audio, const vector<VideoSegment>& video, const PlaybackSettings& settings=defaultSettings);
 	void render(const vector<AudioSegment>& audio, const vector<VideoSegment>& video, const PlaybackSettings& settings=defaultSettings);
 	int run(int argc, char** argv, const vector<AudioSegment>& audio, const vector<VideoSegment>& video, const PlaybackSettings& settings=defaultSettings);
+
+	uint32_t createTexture();
+	void deleteTexture(uint32_t texture);
+	
+	// image format is rgb (24bpp).
+	// stride is w*3 rounded up to nearest multiple of 4
+	void setTextureImage(uint32_t texture, void* image, int w, int h);
 };
