@@ -4,13 +4,19 @@
 LIBYTPMV=common.o modparser.o audiorenderer.o samplecache.o mmutil.o framerenderer.o framerenderer2.o videorenderer.o simple.o
 LIBS= -lglfw -lGL -lGLEW -lEGL -lX11 -lgbm -lSoundTouch -lpthread -lasound `pkg-config --libs gstreamer-1.0 gio-2.0`
 
-CC_FLAGS = -Iinclude -g3 -Wall --std=c++0x `pkg-config --cflags gstreamer-1.0 gio-2.0` -fno-omit-frame-pointer
+CFLAGS ?= -O2
 
-%.o: %.C
-	g++ -c $(CC_FLAGS) $< -o $@
+CC_FLAGS = $(CFLAGS) -Iinclude -Wall --std=c++0x `pkg-config --cflags gstreamer-1.0 gio-2.0` -fno-omit-frame-pointer
+LD_FLAGS = $(LIBS) $(LDFLAGS)
 
 libytpmv.a: $(LIBYTPMV)
 	ar rcs libytpmv.a $(LIBYTPMV)
+
+clean:
+	rm -f *.a *.o
+
+%.o: %.C
+	g++ -c $(CC_FLAGS) $< -o $@
 
 test1: test1.C libytpmv.a
 	g++ -o $@ $^ $(CC_FLAGS) $(LIBS)
