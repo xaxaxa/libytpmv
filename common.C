@@ -1,9 +1,10 @@
 #include <ytpmv/common.H>
-
+#include <fstream>
+#include <sstream>
 namespace ytpmv {
 	AudioSegment::AudioSegment(const Note& n, const Instrument& ins, double bpm) {
-		startSeconds = n.start.absRow*60/bpm;
-		endSeconds = n.end.absRow*60/bpm;
+		startSeconds = n.start.toSeconds(bpm);
+		endSeconds = n.end.toSeconds(bpm);
 		pitch = pow(2,(n.pitchSemitones + ins.tuningSemitones)/12.);
 		if(pitch<1.) tempo = pitch;
 		else tempo = sqrt(pitch);
@@ -14,8 +15,8 @@ namespace ytpmv {
 		copyKeyFrames(n.keyframes, pow(2,ins.tuningSemitones/12.), bpm);
 	}
 	AudioSegment::AudioSegment(const Note& n, const AudioSource& src, double bpm) {
-		startSeconds = n.start.absRow*60/bpm;
-		endSeconds = n.end.absRow*60/bpm;
+		startSeconds = n.start.toSeconds(bpm);
+		endSeconds = n.end.toSeconds(bpm);
 		pitch = pow(2,n.pitchSemitones/12.) * src.pitch;
 		tempo = src.tempo;
 		for(int k=0; k<CHANNELS; k++)
@@ -59,6 +60,20 @@ namespace ytpmv {
 		};*/
 	}
 	
+	vector<float> genRectangleWithCenter(float x1, float y1, float x2, float y2, float tx1, float ty1, float tx2, float ty2) {
+		float cx = (x1+x2)/2., cy = (y1+y2)/2., cz = 0.;
+		// vertex attribute layout must be (x,y,z) (cx,cy,cz) (textureX,textureY)
+		return {
+		   x1, y1, 0.0f, cx, cy, cz, tx1, ty1,
+		   x2, y1, 0.0f, cx, cy, cz, tx2, ty1,
+		   x2, y2, 0.0f, cx, cy, cz, tx2, ty2,
+		   
+		   x2, y2, 0.0f, cx, cy, cz, tx2, ty2,
+		   x1, y2, 0.0f, cx, cy, cz, tx1, ty2,
+		   x1, y1, 0.0f, cx, cy, cz, tx1, ty1
+		};
+	}
+	
 	vector<float> genRectangle(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3) {
 		float tx1=0., ty1=0., tx2=1., ty2=1.;
 		// vertex attribute layout must be (x,y,z) (textureX,textureY)
@@ -86,8 +101,8 @@ namespace ytpmv {
 	
 	
 	VideoSegment::VideoSegment(const Note& n, const VideoSource& src, double bpm) {
-		startSeconds = n.start.absRow*60/bpm;
-		endSeconds = n.end.absRow*60/bpm;
+		startSeconds = n.start.toSeconds(bpm);
+		endSeconds = n.end.toSeconds(bpm);
 		speed = src.speed;
 		source = src.frames.data();
 		sourceFrames = src.frames.size();

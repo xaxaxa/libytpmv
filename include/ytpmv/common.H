@@ -4,8 +4,7 @@
 #include <math.h>
 #include <vector>
 #include <string>
-#include <fstream>
-#include <sstream>
+#include <functional>
 using namespace std;
 
 namespace ytpmv {
@@ -23,6 +22,10 @@ namespace ytpmv {
 		int absRow;
 		// from 0 to 1; timing offset in the specified row
 		double rowOffset;
+		
+		double toSeconds(double bpm) const {
+			return (double(absRow)+rowOffset)*60./bpm;
+		}
 	};
 	inline bool operator<(const Time& t1, const Time& t2) {
 		if(t1.absRow < t2.absRow) return true;
@@ -131,6 +134,8 @@ namespace ytpmv {
 	};
 	
 	vector<float> genRectangle(float x1, float y1, float x2, float y2);
+	vector<float> genRectangleWithCenter(float x1, float y1, float x2, float y2, float tx1=0., float ty1=0., float tx2=1., float ty2=1.);
+	
 	vector<float> genRectangle(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3);
 	
 	struct VideoKeyFrame {
