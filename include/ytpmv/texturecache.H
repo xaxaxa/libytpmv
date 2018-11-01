@@ -9,6 +9,7 @@ namespace ytpmv {
 	public:
 		unordered_map<const void*, uint32_t> entries;
 		TextureCache() {}
+		~TextureCache();
 		uint32_t getTexture(const void* data, int w, int h);
 	};
 }
