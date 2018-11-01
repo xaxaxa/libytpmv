@@ -208,18 +208,26 @@ namespace ytpmv {
 	}
 	
 	void parseOptions(int argc, char** argv) {
-		if(argc > 1) {
-			if(strcmp(argv[1], "play") == 0) {
-			} else if(strcmp(argv[1], "playaudio") == 0) {
-				loadAudioOnly = true;
-			} else if(strcmp(argv[1], "renderaudio") == 0) {
-				loadAudioOnly = true;
-			} else if(strcmp(argv[1], "render") == 0) {
-			} else {
-				fprintf(stderr, "usage: %s (play|playaudio|render|renderaudio)\n", argv[0]);
-				exit(1);
-			}
+		int opt;
+		while ((opt = getopt(argc, argv, "vq")) != -1) {
+			if(opt == 'v') verbosity = 1;
+			else if(opt == 'q') verbosity = -1;
+			else goto print_usage;
 		}
+		if(optind < argc) {
+			if(strcmp(argv[optind], "play") == 0) {
+			} else if(strcmp(argv[optind], "playaudio") == 0) {
+				loadAudioOnly = true;
+			} else if(strcmp(argv[optind], "renderaudio") == 0) {
+				loadAudioOnly = true;
+			} else if(strcmp(argv[optind], "render") == 0) {
+			} else goto print_usage;
+			verb = argv[optind];
+		}
+		return;
+	print_usage:
+		fprintf(stderr, "usage: %s [-v|-q] (play|playaudio|render|renderaudio)\n", argv[0]);
+		exit(1);
 	}
 	
 	void play(const vector<AudioSegment>& audio, const vector<VideoSegment>& video, const PlaybackSettings& settings) {
@@ -305,34 +313,30 @@ namespace ytpmv {
 	}
 	
 	int run(int argc, char** argv, const vector<AudioSegment>& audio, const vector<VideoSegment>& video, const PlaybackSettings& settings) {
-		if(argc > 1) {
-			if(strcmp(argv[1], "play") == 0) {
-				play(audio, video, settings);
-				return 0;
-			} else if(strcmp(argv[1], "playaudio") == 0) {
-				play(audio, {}, settings);
-				return 0;
-			} else if(strcmp(argv[1], "renderaudio") == 0) {
-				renderInfo inf;
-				inf.audioPipe[1] = 1;	// write to stdout
-				inf.audio = &audio;
-				inf.video = nullptr;
-				inf.settings = &settings;
-				inf.srate = 44100;
-				renderAudioThread(&inf);
-				return 0;
-			} else if(strcmp(argv[1], "render") == 0) {
-				render(audio, video, settings);
-				return 0;
-			} else {
-				fprintf(stderr, "usage: %s (play|render)\n", argv[0]);
-				return 1;
-			}
-		} else {
+		if(verb == "play") {
 			play(audio, video, settings);
 			return 0;
+		} else if(verb == "playaudio") {
+			play(audio, {}, settings);
+			return 0;
+		} else if(verb == "renderaudio") {
+			renderInfo inf;
+			inf.audioPipe[1] = 1;	// write to stdout
+			inf.audio = &audio;
+			inf.video = nullptr;
+			inf.settings = &settings;
+			inf.srate = 44100;
+			renderAudioThread(&inf);
+			return 0;
+		} else if(verb == "render") {
+			render(audio, video, settings);
+			return 0;
+		} else {
+			fprintf(stderr, "unknown verb %s\n", verb.c_str());
+			return 1;
 		}
 	}
 	
 	PlaybackSettings defaultSettings;
+	string verb = "play";
 };

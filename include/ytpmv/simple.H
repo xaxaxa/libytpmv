@@ -25,6 +25,7 @@ namespace ytpmv {
 	
 	
 	extern PlaybackSettings defaultSettings;
+	extern string verb;
 	
 	void parseOptions(int argc, char** argv);
 	void play(const vector<AudioSegment>& audio, const vector<VideoSegment>& video, const PlaybackSettings& settings=defaultSettings);
