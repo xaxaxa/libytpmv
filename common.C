@@ -1,6 +1,7 @@
 #include <ytpmv/common.H>
 #include <fstream>
 #include <sstream>
+#include <unistd.h>
 #include <GL/glew.h>
 #include <glm/glm.hpp>
 
@@ -154,5 +155,14 @@ namespace ytpmv {
 		}
 		throw(errno);
 	}
-	
+	int readAll(int fd,void* buf, int len) {
+		uint8_t* buf1=(uint8_t*)buf;
+		int off=0;
+		int r;
+		while(off<len) {
+			if((r=read(fd,buf1+off,len-off))<=0) break;
+			off+=r;
+		}
+		return off;
+	}
 };

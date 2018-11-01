@@ -267,5 +267,6 @@ namespace ytpmv {
 	};
 	
 	std::string get_file_contents(const char *filename);
+	int readAll(int fd,void* buf, int len);
 }
 #endif

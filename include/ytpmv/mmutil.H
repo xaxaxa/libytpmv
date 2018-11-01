@@ -33,4 +33,27 @@ namespace ytpmv {
 		virtual ~MemoryVideoSource() override;
 	};
 	
+	// a video source that dynamically decodes a video file as needed; 
+	// recommended only for sources that are long, referenced a few times,
+	// and never overlaps.
+	// currently only supports playing once
+	class DynamicVideoSource: public VideoSource {
+	public:
+		string file;
+		double fps = 30.;
+		int w,h;
+		
+		// private
+		int texture = 0;
+		int videoPipe[2];
+		double lastFrameTime = 0.;
+		
+		DynamicVideoSource(string file, int w, int h): file(file), w(w), h(h) {
+			videoPipe[0] = videoPipe[1] = -1;
+		}
+		virtual void prepare() override;
+		virtual int32_t getFrame(double timeSeconds) override;
+		virtual void releaseFrame(uint32_t texture) override;
+		virtual ~DynamicVideoSource() override;
+	};
 }

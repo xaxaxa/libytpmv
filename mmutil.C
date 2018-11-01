@@ -6,6 +6,7 @@
 #include <string>
 #include <iostream>
 #include <stdio.h>
+#include <assert.h>
 #include <gst/gst.h>
 #include <gio/gio.h>
 
@@ -490,5 +491,34 @@ namespace ytpmv {
 	MemoryVideoSource::~MemoryVideoSource() {
 		for(uint32_t tex: frames)
 			deleteTexture(tex);
+	}
+	
+	
+	void DynamicVideoSource::prepare() {
+		assert(pipe(videoPipe) == 0);
+		texture = createTexture();
+		loadVideoToFD(file.c_str(), videoPipe[1]);
+	}
+	int32_t DynamicVideoSource::getFrame(double timeSeconds) {
+		double frameDuration = 1./fps;
+		int stride = (w*3 + 3)/4*4;
+		string data;
+		while((timeSeconds - lastFrameTime) >= frameDuration) {
+			data.resize(stride*h);
+			readAll(videoPipe[0], &data[0], (int)data.length());
+			lastFrameTime += frameDuration;
+		}
+		if(data.size() > 0) setTextureImage(texture, &data[0], w, h);
+		return texture;
+	}
+	void DynamicVideoSource::releaseFrame(uint32_t texture) {
+		
+	}
+	DynamicVideoSource::~DynamicVideoSource() {
+		if(videoPipe[0] != -1) {
+			close(videoPipe[0]);
+			close(videoPipe[1]);
+		}
+		if(texture != 0) deleteTexture(texture);
 	}
 }
