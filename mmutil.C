@@ -212,13 +212,12 @@ namespace ytpmv {
 	
 	// TODO(xaxaxa): convert all this code to use gst_parse_launch() instead
 	// TODO(xaxaxa): set VideoSource speed based on systemFPS and file fps
-	ImageArraySource* loadVideo(const char* file) {
+	GMemoryOutputStream* loadVideo(const char* file, int& width, int& height) {
 		GstElement *pipeline, *source, *decode, *sink, *convert;
 		GMainLoop *loop;
 		GstBus *bus;
 		guint bus_watch_id;
 		GMemoryOutputStream *stream;
-		gpointer out_data;
 
 		// loop
 		loop = g_main_loop_new(NULL, false);
@@ -271,7 +270,6 @@ namespace ytpmv {
 		GstStructure* sinkCapsStruct = gst_caps_get_structure(sinkCaps, 0);
 		fprintf(stderr, "pad caps: %s\n",  gst_caps_to_string (sinkCaps));
 		
-		int width, height;
 		if((!gst_structure_get_int (sinkCapsStruct, "width", &width))
 			|| (!gst_structure_get_int (sinkCapsStruct, "height", &height))) {
 			throw runtime_error(string("No Width/Height are Available in the Incoming Stream Data !! file: ") + file + "\n");
@@ -286,11 +284,17 @@ namespace ytpmv {
 		gst_object_unref(GST_OBJECT(pipeline));
 		g_source_remove (bus_watch_id);
 		g_main_loop_unref(loop);
-
+		return stream;
+	}
+	
+	ImageArraySource* loadVideo(const char* file) {
+		int width = 0, height = 0;
+		GMemoryOutputStream *stream = loadVideo(file, width, height);
+		
 		// get data
 		fprintf(stderr, "get data\n");
-		out_data = g_memory_output_stream_get_data(G_MEMORY_OUTPUT_STREAM(stream));
-
+		char* out_data = (char*)g_memory_output_stream_get_data(G_MEMORY_OUTPUT_STREAM(stream));
+		
 		unsigned long size = g_memory_output_stream_get_size(G_MEMORY_OUTPUT_STREAM(stream));
 		unsigned long sizeData = g_memory_output_stream_get_data_size(G_MEMORY_OUTPUT_STREAM(stream));
 		std::cerr << "stream size: " << size << std::endl;
@@ -306,7 +310,7 @@ namespace ytpmv {
 		for(int i=0; i<sizeData; i+=imgBytes) {
 			int bytesLeft = sizeData-i;
 			if(bytesLeft < imgBytes) break;
-			vs->frames.push_back({width, height, {((char*)out_data) + i, imgBytes}, 0});
+			vs->frames.push_back({width, height, {out_data + i, imgBytes}, 0});
 		}
 		g_object_unref(stream);
 		return vs;
@@ -447,5 +451,44 @@ namespace ytpmv {
 		gst_object_unref (pipeline);
 		
 		if(hasError) throw runtime_error("gstreamer error; see log");
+	}
+	
+	
+	
+	
+	void MemoryVideoSource::prepare() {
+		if(frames.size() != 0) return;
+		
+		int width = 0, height = 0;
+		GMemoryOutputStream *stream = loadVideo(file.c_str(), width, height);
+		
+		// get data
+		fprintf(stderr, "get data\n");
+		char* out_data = (char*)g_memory_output_stream_get_data(G_MEMORY_OUTPUT_STREAM(stream));
+		unsigned long size = g_memory_output_stream_get_size(G_MEMORY_OUTPUT_STREAM(stream));
+		unsigned long sizeData = g_memory_output_stream_get_data_size(G_MEMORY_OUTPUT_STREAM(stream));
+		
+		int stride = (width*3 + 3)/4*4;
+		int imgBytes = stride*height;
+		
+		for(int i=0; i<sizeData; i+=imgBytes) {
+			int bytesLeft = sizeData-i;
+			if(bytesLeft < imgBytes) break;
+			uint32_t tex = createTexture();
+			setTextureImage(tex, out_data+i, width, height);
+			frames.push_back(tex);
+		}
+		g_object_unref(stream);
+	}
+	int32_t MemoryVideoSource::getFrame(double timeSeconds) {
+		int i = clamp((int)round(timeSeconds*speed*fps), 0, int(frames.size())-1);
+		return frames.at(i);
+	}
+	void MemoryVideoSource::releaseFrame(uint32_t texture) {
+		// nothing to do
+	}
+	MemoryVideoSource::~MemoryVideoSource() {
+		for(uint32_t tex: frames)
+			deleteTexture(tex);
 	}
 }

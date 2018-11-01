@@ -28,7 +28,7 @@ namespace ytpmv {
 			src.audio->tempo *= audioTempo;
 		}
 		if(videoFile != "" && !loadAudioOnly) {
-			src.video = loadVideo(videoFile.c_str());
+			src.video = new MemoryVideoSource(videoFile);
 			src.video->speed *= videoSpeed;
 		}
 	}

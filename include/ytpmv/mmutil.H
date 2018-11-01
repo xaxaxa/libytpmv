@@ -8,6 +8,7 @@ namespace ytpmv {
 	AudioSource* loadAudio(const char* file, int systemSRate);
 	
 	// load video from a file supported by gstreamer
+	// deprecated in favor of MemoryVideoSource
 	ImageArraySource* loadVideo(const char* file);
 	
 	// load video using gstreamer, and output frames (24bpp) into fd
@@ -17,4 +18,19 @@ namespace ytpmv {
 	// encode a video file using raw audio (44100hz, stereo, S16LE)
 	// and raw video from file descriptors, and write to outFD
 	void encodeVideo(int audioFD, int videoFD, int w, int h, double fps, int srate, int outFD);
+	
+	// a video source that loads the entire video into textures at prepare() time.
+	class MemoryVideoSource: public VideoSource {
+	public:
+		string file;
+		vector<uint32_t> frames;
+		double fps = 30.;
+		
+		MemoryVideoSource(string file): file(file) {}
+		virtual void prepare() override;
+		virtual int32_t getFrame(double timeSeconds) override;
+		virtual void releaseFrame(uint32_t texture) override;
+		virtual ~MemoryVideoSource() override;
+	};
+	
 }
