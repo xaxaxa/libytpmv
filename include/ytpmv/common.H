@@ -5,6 +5,8 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <ytpmv/glutil.H>
+#include <ytpmv/texturecache.H>
 using namespace std;
 
 namespace ytpmv {
@@ -17,6 +19,12 @@ namespace ytpmv {
 	// 0: normal
 	// 1: verbose
 	extern int verbosity;
+	
+	template<class T> T clamp(T val, T min, T max) {
+		if(val < min) val = min;
+		if(val > max) val = max;
+		return val;
+	}
 	
 	struct Time {
 		// number of patterns full before this note
@@ -88,6 +96,23 @@ namespace ytpmv {
 		double tempo, pitch; // pitch & tempo correction applied to this source when played; see AudioSegment
 	};
 	
+	class VideoSource {
+	public:
+		string name;
+		double speed = 1.;
+		
+		// called at start of movie
+		virtual void prepare()=0;
+		
+		// returns a opengl texture for this frame
+		virtual int32_t getFrame(double timeSeconds)=0;
+		
+		// called when a texture returned by getFrame is no longer needed
+		virtual void releaseFrame(uint32_t texture)=0;
+		
+		virtual ~VideoSource() {}
+	};
+	
 	struct Image {
 		int w, h;
 		
@@ -97,18 +122,35 @@ namespace ytpmv {
 		// if data is empty, the image is in a texture
 		int texture;
 	};
-	class VideoSource {
+	class ImageSource: public VideoSource {
 	public:
-		string name;
+		const Image* img;
+		int _tex = 0;
+		ImageSource(const Image* img): img(img) {}
+		virtual ~ImageSource() override;
+		virtual void prepare() override;
+		virtual int32_t getFrame(double timeSeconds) override;
+		virtual void releaseFrame(uint32_t texture) override;
+	};
+	class ImageArraySource: public VideoSource {
+	public:
 		vector<Image> frames;
-		double speed;
+		double fps = 30.;
+		
+		TextureCache cache;
+		
+		ImageArraySource() {}
+		virtual void prepare() override;
+		virtual int32_t getFrame(double timeSeconds) override;
+		virtual void releaseFrame(uint32_t texture) override;
 	};
 	class Source {
 	public:
 		string name;
-		AudioSource audio;
-		VideoSource video;
-		bool hasAudio, hasVideo;
+		AudioSource* audio = nullptr;
+		VideoSource* video = nullptr;
+		bool hasAudio() { return audio != nullptr; }
+		bool hasVideo() { return video != nullptr; }
 	};
 	
 	struct AudioKeyFrame {
@@ -133,7 +175,7 @@ namespace ytpmv {
 		
 		AudioSegment() {}
 		AudioSegment(const Note& n, const Instrument& ins, double bpm);
-		AudioSegment(const Note& n, const AudioSource& src, double bpm);
+		AudioSegment(const Note& n, const AudioSource* src, double bpm);
 		
 		void copyKeyFrames(const vector<NoteKeyFrame>& kfs, double pitch, double bpm);
 		
@@ -156,7 +198,9 @@ namespace ytpmv {
 	class VideoSegment {
 	public:
 		double startSeconds, endSeconds;
-		double speed; // 1 => original speed
+		double speed = 1.0; // 1 => original speed
+		VideoSource* source = nullptr;
+		int zIndex = 0;
 		
 		// array holding all vertex attributes;
 		// layout is:
@@ -206,24 +250,10 @@ namespace ytpmv {
 		
 		// user parameters
 		vector<float> shaderParams;
-		
-		// array of source images
-		const Image* source;
-		int sourceFrames;
-		int zIndex;
-		
-		// if source is null, this function is called every frame to retrieve an image;
-		// it should return an opengl texture number.
-		function<uint32_t(const VideoSegment& seg, double timeSeconds)> getTexture;
-		
-		// this function is called when the texture returned by getTexture is
-		// no longer needed.
-		function<void(const VideoSegment& seg, uint32_t texture)> releaseTexture;
-		
 		vector<VideoKeyFrame> keyframes;
 		
 		VideoSegment() {}
-		VideoSegment(const Note& n, const VideoSource& src, double bpm);
+		VideoSegment(const Note& n, VideoSource* src, double bpm);
 		
 		double durationSeconds() const {
 			return endSeconds - startSeconds;
@@ -237,12 +267,5 @@ namespace ytpmv {
 	};
 	
 	std::string get_file_contents(const char *filename);
-	
-	uint32_t createTexture();
-	void deleteTexture(uint32_t texture);
-	
-	// image format is rgb (24bpp).
-	// stride is w*3 rounded up to nearest multiple of 4
-	void setTextureImage(uint32_t texture, void* image, int w, int h);
 }
 #endif

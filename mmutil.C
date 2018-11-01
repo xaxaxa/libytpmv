@@ -92,7 +92,7 @@ namespace ytpmv {
 	
 	// TODO(xaxaxa): convert all this code to use gst_parse_launch() instead
 	// TODO(xaxaxa): set AudioSource speed based on systemSRate and file srate
-	AudioSource loadAudio(const char* file, int systemSRate) {
+	AudioSource* loadAudio(const char* file, int systemSRate) {
 		GstElement *pipeline, *source, *decode, *sink, *convert;
 		int rate = systemSRate;
 		int channels = CHANNELS;
@@ -166,14 +166,14 @@ namespace ytpmv {
 		std::cerr << "stream data size: " << sizeData << std::endl;
 
 		// access data and store in vector
-		AudioSource as;
+		AudioSource* as = new AudioSource();
 		double scale = 1./32767.;
-		as.name = file;
-		as.pitch = 1.;
-		as.tempo = 1.;
-		as.sample.resize(sizeData/2);
+		as->name = file;
+		as->pitch = 1.;
+		as->tempo = 1.;
+		as->sample.resize(sizeData/2);
 		for (unsigned long i = 0; i < sizeData/2; ++i) {
-			as.sample[i] = float(((int16_t*)out_data)[i])*scale;
+			as->sample[i] = float(((int16_t*)out_data)[i])*scale;
 			//fprintf(stderr, "%d\n", int(((int16_t*)out_data)[i]));
 		}
 		return as;
@@ -212,7 +212,7 @@ namespace ytpmv {
 	
 	// TODO(xaxaxa): convert all this code to use gst_parse_launch() instead
 	// TODO(xaxaxa): set VideoSource speed based on systemFPS and file fps
-	VideoSource loadVideo(const char* file, double systemFPS, bool useTexture) {
+	ImageArraySource* loadVideo(const char* file) {
 		GstElement *pipeline, *source, *decode, *sink, *convert;
 		GMainLoop *loop;
 		GstBus *bus;
@@ -299,21 +299,14 @@ namespace ytpmv {
 		// access data and store in vector
 		int imgBytes = width*height*3;
 		
-		VideoSource vs;
-		vs.name = file;
-		vs.speed = 1.;
+		ImageArraySource* vs = new ImageArraySource();
+		vs->name = file;
+		vs->fps = 30.;
 		
 		for(int i=0; i<sizeData; i+=imgBytes) {
 			int bytesLeft = sizeData-i;
 			if(bytesLeft < imgBytes) break;
-			Image img {width, height, "", 0};
-			if(useTexture) {
-				img.texture = createTexture();
-				setTextureImage(img.texture, ((char*)out_data) + i, width, height);
-			} else {
-				img.data = string(((char*)out_data) + i, imgBytes);
-			}
-			vs.frames.push_back(img);
+			vs->frames.push_back({width, height, {((char*)out_data) + i, imgBytes}, 0});
 		}
 		g_object_unref(stream);
 		return vs;

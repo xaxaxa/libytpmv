@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <assert.h>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -174,16 +175,8 @@ namespace ytpmv {
 					const VideoSegment& seg = segments.at((*it).first);
 					double t = timeSeconds-seg.startSeconds;
 					
-					if(seg.source == nullptr) {
-						// this is a dynamic source; call the lambda function to get image
-						textures[k] = seg.getTexture(seg, t*seg.speed);
-						fr.setImage(k, textures[k]);
-					} else {
-						int srcFrameNum = (int)round(t*fps*seg.speed);
-						if(srcFrameNum >= seg.sourceFrames) srcFrameNum = seg.sourceFrames-1;
-						if(srcFrameNum < 0) srcFrameNum = 0;
-						fr.setImage(k, seg.source[srcFrameNum]);
-					}
+					textures[k] = seg.source->getFrame(t*seg.speed);
+					fr.setImage(k, textures[k]);
 					relTimeSeconds[k] = float(t);
 					
 					// find current keyframe
@@ -202,8 +195,7 @@ namespace ytpmv {
 				k=0;
 				for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 					const VideoSegment& seg = segments.at((*it).first);
-					if(seg.source == nullptr && seg.releaseTexture != nullptr)
-						seg.releaseTexture(seg, textures[k]);
+					seg.source->releaseFrame(textures[k]);
 					k++;
 				}
 				
@@ -236,6 +228,13 @@ namespace ytpmv {
 			shaderCache.buildCache(segments);
 			fr.setRenderers(shaderCache.shaders);
 			
+			// prepare all sources
+			unordered_set<VideoSource*> sources;
+			for(const VideoSegment& seg: segments)
+				sources.insert(seg.source);
+			for(VideoSource* source: sources)
+				source->prepare();
+			
 			// convert note list into note event list
 			for(int i=0;i<(int)segments.size();i++) {
 				NoteEventV evt;
@@ -267,19 +266,8 @@ namespace ytpmv {
 				
 				// find source frame
 				double relTime = timeSeconds-seg.startSeconds;
-				
-				if(seg.source == nullptr) {
-					// this is a dynamic source; call the lambda function to get image
-					textures[k] = seg.getTexture(seg, relTime*seg.speed);
-					fr.setImage(k, textures[k]);
-				} else {
-					int segStartFrame = (int)round(seg.startSeconds*fps);
-					double srcSpeedMultiplier = systemFPS/fps;
-					int srcFrameNum = (int)round((curFrame-segStartFrame)*seg.speed*srcSpeedMultiplier);
-					if(srcFrameNum >= seg.sourceFrames) srcFrameNum = seg.sourceFrames-1;
-					if(srcFrameNum < 0) srcFrameNum = 0;
-					fr.setImage(k, seg.source[srcFrameNum]);
-				}
+				textures[k] = seg.source->getFrame(relTime*seg.speed);
+				fr.setImage(k, textures[k]);
 				
 				// set parameters
 				relTimeSeconds[k] = float(timeSeconds-seg.startSeconds);
@@ -301,8 +289,7 @@ namespace ytpmv {
 			k=0;
 			for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 				const VideoSegment& seg = segments.at((*it).first);
-				if(seg.source == nullptr && seg.releaseTexture != nullptr)
-					seg.releaseTexture(seg, textures[k]);
+				seg.source->releaseFrame(textures[k]);
 				k++;
 			}
 			return ret;

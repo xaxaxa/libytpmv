@@ -5,10 +5,10 @@ namespace ytpmv {
 	// load audio from a file supported by gstreamer
 	// systemSRate should be set to the system sample rate
 	// and is used to adjust the pitch and tempo corrections
-	AudioSource loadAudio(const char* file, int systemSRate);
+	AudioSource* loadAudio(const char* file, int systemSRate);
 	
 	// load video from a file supported by gstreamer
-	VideoSource loadVideo(const char* file, double systemFPS, bool useTexture=false);
+	ImageArraySource* loadVideo(const char* file);
 	
 	// load video using gstreamer, and output frames (24bpp) into fd
 	// DO NOT USE. See comment in common.C.

@@ -3,7 +3,6 @@
 #include <ytpmv/videorenderer.H>
 #include <ytpmv/audiorenderer.H>
 #include <ytpmv/mmutil.H>
-#include <ytpmv/glutil.H>
 #include <functional>
 #include <map>
 #include <pthread.h>
@@ -23,18 +22,14 @@ namespace ytpmv {
 	map<string, Source> sources;
 	void loadSource(Source& src, string audioFile, string videoFile,
 					double audioPitch, double audioTempo, double videoSpeed) {
-		src.hasAudio = false;
-		src.hasVideo = false;
 		if(audioFile != "") {
 			src.audio = loadAudio(audioFile.c_str(), 44100);
-			src.audio.pitch *= audioPitch;
-			src.audio.tempo *= audioTempo;
-			src.hasAudio = true;
+			src.audio->pitch *= audioPitch;
+			src.audio->tempo *= audioTempo;
 		}
 		if(videoFile != "" && !loadAudioOnly) {
-			src.video = loadVideo(videoFile.c_str(), 30);
-			src.video.speed *= videoSpeed;
-			src.hasVideo = true;
+			src.video = loadVideo(videoFile.c_str());
+			src.video->speed *= videoSpeed;
 		}
 	}
 	Source* addSource(string name, string audioFile, string videoFile,
@@ -51,10 +46,10 @@ namespace ytpmv {
 	}
 	void trimSource(string name, double startTimeSeconds, double lengthSeconds) {
 		Source& src = *getSource(name);
-		if(src.hasAudio) {
+		if(src.audio != nullptr) {
 			int startSamples = (int)round(startTimeSeconds*44100);
 			int endSamples = (lengthSeconds==-1.)?string::npos: startSamples+(int)round(lengthSeconds*44100);
-			src.audio.sample = src.audio.sample.substr(startSamples*CHANNELS, endSamples*CHANNELS);
+			src.audio->sample = src.audio->sample.substr(startSamples*CHANNELS, endSamples*CHANNELS);
 		}
 	}
 	

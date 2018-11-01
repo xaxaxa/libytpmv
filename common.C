@@ -7,6 +7,33 @@
 namespace ytpmv {
 	int verbosity = 0;
 	
+	void ImageSource::prepare() {
+		if(_tex != 0) return;
+		_tex = createTexture();
+		setTextureImage(_tex, img->data.data(), img->w, img->h);
+	}
+	int32_t ImageSource::getFrame(double timeSeconds) {
+		return _tex;
+	}
+	void ImageSource::releaseFrame(uint32_t texture) {
+		// nothing to do
+	}
+	ImageSource::~ImageSource() {
+		deleteTexture(_tex);
+	}
+	
+	void ImageArraySource::prepare() {
+		// nothing to do
+	}
+	int32_t ImageArraySource::getFrame(double timeSeconds) {
+		int i = clamp((int)round(timeSeconds*speed*fps), 0, int(frames.size())-1);
+		Image& img = frames.at(i);
+		return cache.getTexture(img.data.data(), img.w, img.h);
+	}
+	void ImageArraySource::releaseFrame(uint32_t texture) {
+		// nothing to do
+	}
+	
 	AudioSegment::AudioSegment(const Note& n, const Instrument& ins, double bpm) {
 		startSeconds = n.start.toSeconds(bpm);
 		endSeconds = n.end.toSeconds(bpm);
@@ -19,16 +46,16 @@ namespace ytpmv {
 		sampleLength = ins.sampleData.length();
 		copyKeyFrames(n.keyframes, pow(2,ins.tuningSemitones/12.), bpm);
 	}
-	AudioSegment::AudioSegment(const Note& n, const AudioSource& src, double bpm) {
+	AudioSegment::AudioSegment(const Note& n, const AudioSource* src, double bpm) {
 		startSeconds = n.start.toSeconds(bpm);
 		endSeconds = n.end.toSeconds(bpm);
-		pitch = pow(2,n.pitchSemitones/12.) * src.pitch;
-		tempo = src.tempo;
+		pitch = pow(2,n.pitchSemitones/12.) * src->pitch;
+		tempo = src->tempo;
 		for(int k=0; k<CHANNELS; k++)
 			amplitude[k] = pow(10,n.amplitudeDB/20.);
-		sampleData = src.sample.data();
-		sampleLength = src.sample.length();
-		copyKeyFrames(n.keyframes, src.pitch, bpm);
+		sampleData = src->sample.data();
+		sampleLength = src->sample.length();
+		copyKeyFrames(n.keyframes, src->pitch, bpm);
 	}
 	void AudioSegment::copyKeyFrames(const vector<NoteKeyFrame>& kfs, double pitch, double bpm) {
 		for(const NoteKeyFrame& kf: kfs) {
@@ -105,19 +132,16 @@ namespace ytpmv {
 	}
 	
 	
-	VideoSegment::VideoSegment(const Note& n, const VideoSource& src, double bpm) {
+	
+	VideoSegment::VideoSegment(const Note& n, VideoSource* src, double bpm) {
 		startSeconds = n.start.toSeconds(bpm);
 		endSeconds = n.end.toSeconds(bpm);
-		speed = src.speed;
-		source = src.frames.data();
-		sourceFrames = src.frames.size();
+		source = src;
 		
 		vertexes = genRectangle(-1, -1, 1, 1);
 		vertexVarSizes[0] = 3;
 		vertexVarSizes[1] = 2;
 		vertexVarSizes[2] = 0;
-		
-		zIndex = 0;
 	}
 	
 	std::string get_file_contents(const char *filename) {
@@ -131,28 +155,4 @@ namespace ytpmv {
 		throw(errno);
 	}
 	
-	
-	uint32_t createTexture() {
-		uint32_t tex = 0;
-		glGenTextures(1, &tex);
-		assert(glGetError()==GL_NO_ERROR);
-		return tex;
-	}
-	void deleteTexture(uint32_t texture) {
-		glDeleteTextures(1, &texture);
-		assert(glGetError()==GL_NO_ERROR);
-	}
-	void setTextureImage(uint32_t texture, void* image, int w, int h) {
-		glPixelStorei(GL_UNPACK_ALIGNMENT,4);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-		glGenerateMipmap(GL_TEXTURE_2D);
-		glBindTexture(GL_TEXTURE_2D, 0);
-		assert(glGetError()==GL_NO_ERROR);
-	}
 };
