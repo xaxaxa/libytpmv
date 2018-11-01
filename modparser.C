@@ -8,7 +8,7 @@ namespace ytpmv {
 	static string getString(const void* data, int maxLen) {
 		string tmp((char*)data, maxLen);
 		int l = strlen((char*)data);
-		if(l < tmp.length())
+		if(l < int(tmp.length()))
 			tmp.resize(l);
 		return tmp;
 	}
@@ -78,7 +78,7 @@ namespace ytpmv {
 							tickDuration = 2.5/double(effect&0xff);
 						}
 						ps.bpm = 60./(ticksPerRow*tickDuration);
-						fprintf(stderr, "%d, %d, %x: bpm %f\n", row, channel, effect, ps.bpm);
+						PRNT(0, "row %d, channel %d, effect %x: bpm %f\n", row, channel, effect, ps.bpm);
 					}
 				}
 				// if an instrument is specified without a note, start a new note with the last pitch
@@ -115,7 +115,7 @@ namespace ytpmv {
 						// set volume
 						if((effect & 0xF00) == 0xC00) {
 							double dB = log10(double(effect&0xff)/64.)*20;
-							n.keyframes.push_back({ps.curRowAbs-n.start.absRow, dB-n.amplitudeDB, 0.});
+							n.keyframes.push_back({double(ps.curRowAbs-n.start.absRow), dB-n.amplitudeDB, 0.});
 							//fprintf(stderr, "KEYFRAME: %f\n", dB);
 						}
 					}
@@ -232,7 +232,6 @@ namespace ytpmv {
 		ps.defaultVolumes = defaultVolumes;
 		for(int i=0; i<songLength; i++) {
 			int pattern = seqTable[i];
-			fprintf(stderr, "%d\n", pattern);
 			const uint8_t* patternData = inData + 1084 + patternBytes*pattern;
 			parseModPattern(patternData, patternRows, ps);
 			
@@ -242,8 +241,6 @@ namespace ytpmv {
 		
 		
 		int sampleStart = 1084+patternBytes*nPatterns;
-		
-		fprintf(stderr, "%d %d\n", inLen, sampleStart);
 		
 		// load samples
 		for(int i=0;i<31;i++) {

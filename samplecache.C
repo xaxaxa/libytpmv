@@ -40,4 +40,9 @@ namespace ytpmv {
 		}
 		return ret;
 	}
+	bool operator<(const SampleCache::Key& k1, const SampleCache::Key& k2) {
+		if(k1.data < k2.data) return true;
+		if(k1.data > k2.data) return false;
+		return k1.pitch < k2.pitch;
+	}
 }

@@ -51,7 +51,7 @@ namespace ytpmv {
 		int InfoLogLength;
 		
 		// Compile Vertex Shader
-		fprintf(stderr, "Compiling vertex shader\n");
+		PRNT(0, "Compiling vertex shader\n");
 		char const * VertexSourcePointer = VertexShaderCode.c_str();
 		glShaderSource(VertexShaderID, 1, &VertexSourcePointer , NULL);
 		glCompileShader(VertexShaderID);
@@ -62,11 +62,11 @@ namespace ytpmv {
 		if ( InfoLogLength > 0 ){
 			std::vector<char> VertexShaderErrorMessage(InfoLogLength+1);
 			glGetShaderInfoLog(VertexShaderID, InfoLogLength, NULL, &VertexShaderErrorMessage[0]);
-			fprintf(stderr, "%s\n", &VertexShaderErrorMessage[0]);
+			PRNT(0, "%s\n", &VertexShaderErrorMessage[0]);
 		}
 
 		// Compile Fragment Shader
-		fprintf(stderr, "Compiling fragment shader\n");
+		PRNT(0, "Compiling fragment shader\n");
 		char const * FragmentSourcePointer = FragmentShaderCode.c_str();
 		glShaderSource(FragmentShaderID, 1, &FragmentSourcePointer , NULL);
 		glCompileShader(FragmentShaderID);
@@ -77,11 +77,11 @@ namespace ytpmv {
 		if ( InfoLogLength > 0 ){
 			std::vector<char> FragmentShaderErrorMessage(InfoLogLength+1);
 			glGetShaderInfoLog(FragmentShaderID, InfoLogLength, NULL, &FragmentShaderErrorMessage[0]);
-			fprintf(stderr, "%s\n", &FragmentShaderErrorMessage[0]);
+			PRNT(0, "%s\n", &FragmentShaderErrorMessage[0]);
 		}
 
 		// Link the program
-		fprintf(stderr, "Linking program\n");
+		PRNT(0, "Linking program\n");
 		GLuint ProgramID = glCreateProgram();
 		glAttachShader(ProgramID, VertexShaderID);
 		glAttachShader(ProgramID, FragmentShaderID);
@@ -93,7 +93,7 @@ namespace ytpmv {
 		if ( InfoLogLength > 0 ){
 			std::vector<char> ProgramErrorMessage(InfoLogLength+1);
 			glGetProgramInfoLog(ProgramID, InfoLogLength, NULL, &ProgramErrorMessage[0]);
-			fprintf(stderr, "%s\n", &ProgramErrorMessage[0]);
+			PRNT(0, "%s\n", &ProgramErrorMessage[0]);
 		}
 		glDetachShader(ProgramID, VertexShaderID);
 		glDetachShader(ProgramID, FragmentShaderID);
@@ -151,7 +151,7 @@ namespace ytpmv {
 		glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
 		
 		glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &textureUnits);
-		fprintf(stderr, "number of texture units: %d\n", textureUnits);
+		PRNT(0, "number of texture units: %d\n", textureUnits);
 		textureUnitContents.resize(textureUnits);
 	}
 	string FrameRenderer2_generateCode(string code, int maxParams) {
@@ -304,12 +304,12 @@ namespace ytpmv {
 				totalVarSize += varSizes[varIndex];
 			int nVertex = int(vert.size()) / totalVarSize;
 			
-			//fprintf(stderr, "nVertex %d\n", nVertex);
+			//PRNT(0, "nVertex %d\n", nVertex);
 			
 			int varOffs = vertexOffs;
 			for(int varIndex=0; varSizes[varIndex] != 0; varIndex++) {
 				int varSize = varSizes[varIndex];
-				//fprintf(stderr, "glVertexAttribPointer %d %d %d\n", varIndex, varSize, varOffs);
+				//PRNT(0, "glVertexAttribPointer %d %d %d\n", varIndex, varSize, varOffs);
 				glVertexAttribPointer(
 				   varIndex,           // variable id. must match the "layout" of the variable in the shader.
 				   varSize,            // number of elements per vertex
@@ -361,7 +361,7 @@ namespace ytpmv {
 		glReadPixels(0,0,w,h,  GL_RGBA,  GL_UNSIGNED_INT_8_8_8_8_REV, (void*)ret.data());
 		
 		assert(glGetError()==GL_NO_ERROR);
-		//fprintf(stderr, "%d\n", (int)glGetError());
+		//PRNT(0, "%d\n", (int)glGetError());
 		return ret;
 	}
 	void FrameRenderer2::setRenderToScreen() {

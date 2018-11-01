@@ -24,9 +24,5 @@ namespace ytpmv {
 		basic_string<float>& getPitchShiftedSample(const float* sampleData, int sampleLen, double pitch);
 	};
 	
-	static bool operator<(const SampleCache::Key& k1, const SampleCache::Key& k2) {
-		if(k1.data < k2.data) return true;
-		if(k1.data > k2.data) return false;
-		return k1.pitch < k2.pitch;
-	}
+	bool operator<(const SampleCache::Key& k1, const SampleCache::Key& k2);
 }

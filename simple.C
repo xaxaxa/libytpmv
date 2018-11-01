@@ -178,7 +178,7 @@ namespace ytpmv {
 					frame = (int)round(double(t)*1e-6*fps);
 				}
 				
-				//fprintf(stderr, "ADVANCE TO FRAME %d\n", frame);
+				//PRNT(0, "ADVANCE TO FRAME %d\n", frame);
 				if(!videoRenderer->advanceTo(frame)) break;
 				
 				uint64_t micros1 = getTimeMicros();
@@ -189,7 +189,7 @@ namespace ytpmv {
 				renderDelay = getTimeMicros() - micros1;
 				
 				if((micros1 - lastPrint) >= 1000000) {
-					fprintf(stderr, "\033[44;37mFRAMERATE: %d fps; RENDERDELAY: %d us\033[0m\n",
+					PRNT(0, "\033[44;37mFRAMERATE: %d fps; RENDERDELAY: %d us\033[0m\n",
 						int(frames-lastFrames), int(renderDelay));
 					lastPrint = micros1;
 					lastFrames = frames;

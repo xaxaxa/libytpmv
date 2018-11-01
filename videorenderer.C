@@ -88,8 +88,8 @@ namespace ytpmv {
 				
 				nextIndex++;
 			}
-			fprintf(stderr, "%d unique shader keys\n", (int)shaderIDs2.size());
-			fprintf(stderr, "%d shader programs\n", nextIndex);
+			PRNT(0, "%d unique shader keys\n", (int)shaderIDs2.size());
+			PRNT(0, "%d shader programs\n", nextIndex);
 		}
 		int getShaderProgramIndex(const VideoSegment& seg) {
 			assert(shaderIDs2.find(shaderKey(seg)) != shaderIDs2.end());
@@ -137,10 +137,10 @@ namespace ytpmv {
 			if(!evt.off) { // note on
 				notesActive[evt.segmentIndex] = curTimeFrames;
 				const VideoSegment& s = segments.at(evt.segmentIndex);
-				fprintf(stderr, "videoclip on: %5d:  dur %3.2fs\n", evt.segmentIndex, s.durationSeconds());
+				PRNT(0, "videoclip on: %5d:  dur %3.2fs\n", evt.segmentIndex, s.durationSeconds());
 			} else {
 				notesActive.erase(evt.segmentIndex);
-				fprintf(stderr, "videoclip off:%5d\n", evt.segmentIndex);
+				PRNT(0, "videoclip off:%5d\n", evt.segmentIndex);
 			}
 			
 			if(curTimeFrames >= nextTimeFrames) continue;
@@ -298,7 +298,7 @@ namespace ytpmv {
 			if(frame <= curFrame) return true;
 			
 			bool encounteredEvent = false;
-			//fprintf(stderr, "%d events\n", (int)events.size());
+			//PRNT(0, "%d events\n", (int)events.size());
 			// go through events until one beyond the requested frame is encountered
 			while(lastEventIndex < (int)events.size()) {
 				NoteEventV& evt = events[lastEventIndex];
@@ -307,14 +307,14 @@ namespace ytpmv {
 				
 				// if the event's start time is after curFrame then we haven't processed it yet
 				if(evt.t > curFrame) {
-					fprintf(stderr, "event %d: ", lastEventIndex);
+					PRNT(1, "event %d: ", lastEventIndex);
 					if(!evt.off) { // note on
 						notesActive[evt.segmentIndex] = evt.t;
 						const VideoSegment& s = segments.at(evt.segmentIndex);
-						fprintf(stderr, "videoclip on: %5d:  dur %3.2fs\n", evt.segmentIndex, s.durationSeconds());
+						PRNT(1, "videoclip on: %5d:  dur %3.2fs\n", evt.segmentIndex, s.durationSeconds());
 					} else {
 						notesActive.erase(evt.segmentIndex);
-						fprintf(stderr, "videoclip off:%5d\n", evt.segmentIndex);
+						PRNT(1, "videoclip off:%5d\n", evt.segmentIndex);
 					}
 					encounteredEvent = true;
 				}

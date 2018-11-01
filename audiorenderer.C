@@ -29,7 +29,6 @@ namespace ytpmv {
 	};
 	void renderRegion(ActiveNote* notes, int noteCount, int curTimeSamples,
 						int durationSamples, int srate, float* outBuf) {
-		double f = 50./srate;
 		for(int i=0;i<durationSamples;i++) {
 			int t = i + curTimeSamples;
 			float curSample[CHANNELS] = {};
@@ -75,11 +74,12 @@ namespace ytpmv {
 		SampleCache cache;
 		
 		// pre-populate sample cache with all used samples and pitches
+		PRNT(0, "populating pitch shift cache...\n");
 		for(const AudioSegment& s: segments) {
 			double relativePitch = s.pitch/s.tempo;
 			cache.getPitchShiftedSample(s.sampleData, s.sampleLength, relativePitch);
 		}
-		fprintf(stderr, "sample cache populated; %d samples\n", (int)cache.entries.size());
+		PRNT(0, "sample cache populated; %d samples\n", (int)cache.entries.size());
 		
 		// convert note list into note event list
 		vector<NoteEvent> events;
@@ -112,10 +112,10 @@ namespace ytpmv {
 			if(!evt.off) { // note on
 				notesActive[evt.segmentIndex] = curTimeSamples;
 				const AudioSegment& s = segments.at(evt.segmentIndex);
-				fprintf(stderr, "note on: %5d:  pitch %5.2f  vol %3.1f  dur %3.2fs\n", evt.segmentIndex, s.pitch,s.amplitude[0], s.durationSeconds());
+				PRNT(1, "note on: %5d:  pitch %5.2f  vol %3.1f  dur %3.2fs\n", evt.segmentIndex, s.pitch,s.amplitude[0], s.durationSeconds());
 			} else {
 				notesActive.erase(evt.segmentIndex);
-				fprintf(stderr, "note off:%5d\n", evt.segmentIndex);
+				PRNT(1, "note off:%5d\n", evt.segmentIndex);
 			}
 			
 			// calculate time until next event

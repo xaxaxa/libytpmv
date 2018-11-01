@@ -153,7 +153,7 @@ void createGLContext()
             //                "SAMPLE_BUFFERS = %d, SAMPLES = %d",
             //                 i, vi -> visualid, samp_buf, samples);
 
-            if (best_fbc < 0 || samp_buf && samples > best_num_samp) {
+            if (best_fbc < 0 || (samp_buf && samples > best_num_samp)) {
                 best_fbc = i, best_num_samp = samples;
             }
 
@@ -172,7 +172,7 @@ void createGLContext()
 
     // Get a visual
     XVisualInfo *vi = glXGetVisualFromFBConfig(display, bestFbc);
-    MSG("Chosen visual ID = 0x%x", vi->visualid);
+    MSG("Chosen visual ID = 0x%lx", vi->visualid);
 
     MSG("Creating colormap");
     XSetWindowAttributes swa;

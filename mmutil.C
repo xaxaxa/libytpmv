@@ -23,7 +23,7 @@ namespace ytpmv {
 		else if (nano == 2) nano_str = "(Prerelease)";
 		else nano_str = "";
 
-		fprintf (stderr, "This program is linked against GStreamer %d.%d.%d %s\n",
+		PRNT(0, "This program is linked against GStreamer %d.%d.%d %s\n",
 				major, minor, micro, nano_str);
 		return 0;
 	}
@@ -34,7 +34,7 @@ namespace ytpmv {
 							 GstPad *pad,
 							 gpointer data) {
 		GstElement *convert = (GstElement *) data;
-		fprintf(stderr, "pad added\n");
+		PRNT(1, "pad added\n");
 		GstCaps *caps;
 		GstStructure *str;
 		GstPad *audiopad;
@@ -47,17 +47,17 @@ namespace ytpmv {
 
 		caps = gst_pad_query_caps(pad, NULL);
 		str = gst_caps_get_structure(caps, 0);
-		fprintf(stderr, "here %s\n",gst_structure_get_name(str));
+		PRNT(1, "here %s\n",gst_structure_get_name(str));
 		if (!g_strrstr(gst_structure_get_name(str), "audio")) {
 			gst_caps_unref(caps);
 			gst_object_unref(audiopad);
-			fprintf(stderr, "ERROR 1\n");
+			PRNT(1, "not audio pad\n");
 			return;
 		}
 		gst_caps_unref(caps);
 		gst_pad_link(pad, audiopad);
 		g_object_unref(audiopad);
-		fprintf(stderr, "pad linked\n");
+		PRNT(1, "pad linked\n");
 	}
 
 	static gboolean bus_call(GstBus *bus,
@@ -67,7 +67,7 @@ namespace ytpmv {
 
 		switch (GST_MESSAGE_TYPE(msg)) {
 			case GST_MESSAGE_EOS:
-				fprintf(stderr, "End of stream\n");
+				PRNT(1, "End of stream\n");
 				g_main_loop_quit(loop);
 				break;
 			case GST_MESSAGE_ERROR: {
@@ -95,7 +95,6 @@ namespace ytpmv {
 	// TODO(xaxaxa): set AudioSource speed based on systemSRate and file srate
 	AudioSource* loadAudio(const char* file, int systemSRate) {
 		GstElement *pipeline, *source, *decode, *sink, *convert;
-		int rate = systemSRate;
 		int channels = CHANNELS;
 		GMainLoop *loop;
 		GstBus *bus;
@@ -145,26 +144,26 @@ namespace ytpmv {
 		gst_element_set_state(GST_ELEMENT(pipeline), GST_STATE_PLAYING);
 
 		// iterate
-		fprintf(stderr, "RUNNING GSTREAMER PIPELINE FOR AUDIO: %s\n", file);
+		PRNT(0, "RUNNING GSTREAMER PIPELINE FOR AUDIO: %s\n", file);
 		g_main_loop_run(loop);
 
 		// out of the main loop, clean up nicely
-		fprintf(stderr, "Returned, stopping playback\n");
+		PRNT(0, "Returned, stopping playback\n");
 		gst_element_set_state(pipeline, GST_STATE_NULL);
 
-		fprintf(stderr, "Deleting pipeline\n");
+		PRNT(1, "Deleting pipeline\n");
 		gst_object_unref(GST_OBJECT(pipeline));
 		g_source_remove (bus_watch_id);
 		g_main_loop_unref(loop);
 
 		// get data
-		fprintf(stderr, "get data\n");
+		PRNT(1, "get data\n");
 		out_data = g_memory_output_stream_get_data(G_MEMORY_OUTPUT_STREAM(stream));
 
 		unsigned long size = g_memory_output_stream_get_size(G_MEMORY_OUTPUT_STREAM(stream));
 		unsigned long sizeData = g_memory_output_stream_get_data_size(G_MEMORY_OUTPUT_STREAM(stream));
-		std::cerr << "stream size: " << size << std::endl;
-		std::cerr << "stream data size: " << sizeData << std::endl;
+		PRNT(1, "stream size: %lu\n", size);
+		PRNT(1, "stream data size: %lu\n", sizeData);
 
 		// access data and store in vector
 		AudioSource* as = new AudioSource();
@@ -175,7 +174,7 @@ namespace ytpmv {
 		as->sample.resize(sizeData/2);
 		for (unsigned long i = 0; i < sizeData/2; ++i) {
 			as->sample[i] = float(((int16_t*)out_data)[i])*scale;
-			//fprintf(stderr, "%d\n", int(((int16_t*)out_data)[i]));
+			//PRNT(0, "%d\n", int(((int16_t*)out_data)[i]));
 		}
 		return as;
 	}
@@ -184,7 +183,7 @@ namespace ytpmv {
 							 GstPad *pad,
 							 gpointer data) {
 		GstElement *convert = (GstElement *) data;
-		fprintf(stderr, "pad added\n");
+		PRNT(1, "pad added\n");
 		GstCaps *caps;
 		GstStructure *str;
 		GstPad *videopad;
@@ -197,18 +196,18 @@ namespace ytpmv {
 
 		caps = gst_pad_query_caps(pad, NULL);
 		str = gst_caps_get_structure(caps, 0);
-		fprintf(stderr, "here %s\n",gst_structure_get_name(str));
+		PRNT(1, "here %s\n",gst_structure_get_name(str));
 		if (!g_strrstr(gst_structure_get_name(str), "video")) {
 			gst_caps_unref(caps);
 			gst_object_unref(videopad);
-			fprintf(stderr, "ERROR 1\n");
+			PRNT(1, "not video pad\n");
 			return;
 		}
 		
 		gst_caps_unref(caps);
 		gst_pad_link(pad, videopad);
 		g_object_unref(videopad);
-		fprintf(stderr, "pad linked\n");
+		PRNT(1, "pad linked\n");
 	}
 	
 	// TODO(xaxaxa): convert all this code to use gst_parse_launch() instead
@@ -261,7 +260,7 @@ namespace ytpmv {
 		gst_element_set_state(GST_ELEMENT(pipeline), GST_STATE_PLAYING);
 
 		// iterate
-		fprintf(stderr, "RUNNING GSTREAMER PIPELINE FOR VIDEO: %s\n", file);
+		PRNT(0, "RUNNING GSTREAMER PIPELINE FOR VIDEO: %s\n", file);
 		g_main_loop_run(loop);
 		
 		
@@ -269,19 +268,19 @@ namespace ytpmv {
 		GstPad* sinkPad = gst_element_get_static_pad (sink, "sink");
 		GstCaps* sinkCaps = gst_pad_get_current_caps (sinkPad);
 		GstStructure* sinkCapsStruct = gst_caps_get_structure(sinkCaps, 0);
-		fprintf(stderr, "pad caps: %s\n",  gst_caps_to_string (sinkCaps));
+		PRNT(1, "pad caps: %s\n",  gst_caps_to_string (sinkCaps));
 		
 		if((!gst_structure_get_int (sinkCapsStruct, "width", &width))
 			|| (!gst_structure_get_int (sinkCapsStruct, "height", &height))) {
 			throw runtime_error(string("No Width/Height are Available in the Incoming Stream Data !! file: ") + file + "\n");
 		}
-		fprintf(stderr, "dimensions: %d x %d\n", width, height);
+		PRNT(0, "dimensions: %d x %d\n", width, height);
 
 		// out of the main loop, clean up nicely
-		fprintf(stderr, "Returned, stopping playback\n");
+		PRNT(0, "Returned, stopping playback\n");
 		gst_element_set_state(pipeline, GST_STATE_NULL);
 
-		fprintf(stderr, "Deleting pipeline\n");
+		PRNT(1, "Deleting pipeline\n");
 		gst_object_unref(GST_OBJECT(pipeline));
 		g_source_remove (bus_watch_id);
 		g_main_loop_unref(loop);
@@ -293,13 +292,13 @@ namespace ytpmv {
 		GMemoryOutputStream *stream = loadVideo(file, width, height);
 		
 		// get data
-		fprintf(stderr, "get data\n");
+		PRNT(1, "get data\n");
 		char* out_data = (char*)g_memory_output_stream_get_data(G_MEMORY_OUTPUT_STREAM(stream));
 		
 		unsigned long size = g_memory_output_stream_get_size(G_MEMORY_OUTPUT_STREAM(stream));
 		unsigned long sizeData = g_memory_output_stream_get_data_size(G_MEMORY_OUTPUT_STREAM(stream));
-		std::cerr << "stream size: " << size << std::endl;
-		std::cerr << "stream data size: " << sizeData << std::endl;
+		PRNT(1, "stream size: %lu\n", size);
+		PRNT(1, "stream data size: %lu\n", sizeData);
 
 		// access data and store in vector
 		int imgBytes = width*height*3;
@@ -308,10 +307,10 @@ namespace ytpmv {
 		vs->name = file;
 		vs->fps = 30.;
 		
-		for(int i=0; i<sizeData; i+=imgBytes) {
-			int bytesLeft = sizeData-i;
-			if(bytesLeft < imgBytes) break;
-			vs->frames.push_back({width, height, {out_data + i, imgBytes}, 0});
+		for(long i=0; i<(long)sizeData; i+=imgBytes) {
+			long bytesLeft = sizeData-i;
+			if(bytesLeft < long(imgBytes)) break;
+			vs->frames.push_back({width, height, string(out_data + i, imgBytes), 0});
 		}
 		g_object_unref(stream);
 		return vs;
@@ -333,7 +332,6 @@ namespace ytpmv {
 		GstElement *pipeline, *source, *decode, *sink, *convert;
 		GMainLoop *loop;
 		GstBus *bus;
-		guint bus_watch_id;
 
 		// loop
 		loop = g_main_loop_new(NULL, false);
@@ -354,7 +352,7 @@ namespace ytpmv {
 
 		// bus
 		bus = gst_pipeline_get_bus(GST_PIPELINE (pipeline));
-		bus_watch_id = gst_bus_add_watch(bus, bus_call, loop);
+		gst_bus_add_watch(bus, bus_call, loop);
 		gst_object_unref(bus);
 
 		// add elements into pipeline
@@ -379,16 +377,16 @@ namespace ytpmv {
 		/*GstPad* sinkPad = gst_element_get_static_pad (sink, "sink");
 		GstCaps* sinkCaps = gst_pad_get_current_caps (sinkPad);
 		GstStructure* sinkCapsStruct = gst_caps_get_structure(sinkCaps, 0);
-		fprintf(stderr, "pad caps: %s\n",  gst_caps_to_string (sinkCaps));
+		PRNT(0, "pad caps: %s\n",  gst_caps_to_string (sinkCaps));
 		
 		if((!gst_structure_get_int (sinkCapsStruct, "width", &w))
 			|| (!gst_structure_get_int (sinkCapsStruct, "height", &h))) {
 			throw runtime_error(string("No Width/Height are Available in the Incoming Stream Data !! file: ") + file + "\n");
 		}
-		fprintf(stderr, "dimensions: %d x %d\n", w, h);*/
+		PRNT(0, "dimensions: %d x %d\n", w, h);*/
 
 		// iterate
-		fprintf(stderr, "RUNNING GSTREAMER PIPELINE FOR VIDEO: %s\n", file);
+		PRNT(0, "RUNNING GSTREAMER PIPELINE FOR VIDEO: %s\n", file);
 		//g_main_loop_run(loop);
 		
 		pthread_t pth;
@@ -396,10 +394,10 @@ namespace ytpmv {
 		
 		/*
 		// out of the main loop, clean up nicely
-		fprintf(stderr, "Returned, stopping playback\n");
+		PRNT(0, "Returned, stopping playback\n");
 		gst_element_set_state(pipeline, GST_STATE_NULL);
 
-		fprintf(stderr, "Deleting pipeline\n");
+		PRNT(0, "Deleting pipeline\n");
 		gst_object_unref(GST_OBJECT(pipeline));
 		g_source_remove (bus_watch_id);
 		g_main_loop_unref(loop);*/
@@ -411,7 +409,7 @@ namespace ytpmv {
 					" ! videoconvert ! x264enc bitrate=8192 ! mp4mux fragment-duration=1000 streamable=true name=mux ! fdsink fd=" + to_string(outFD)
 					+ " fdsrc name=fdsrc_audio fd=" + to_string(audioFD) + 
 					" ! rawaudioparse pcm-format=GST_AUDIO_FORMAT_S16LE num-channels=2 interleaved=true sample-rate="+to_string(srate)+" ! audioconvert ! lamemp3enc ! mux.";
-		fprintf(stderr, "%s\n", desc.c_str());
+		PRNT(0, "%s\n", desc.c_str());
 		GError* err = nullptr;
 		GstElement* pipeline = gst_parse_launch(desc.c_str(), &err);
 		if(err != nullptr) {
@@ -464,17 +462,17 @@ namespace ytpmv {
 		GMemoryOutputStream *stream = loadVideo(file.c_str(), width, height);
 		
 		// get data
-		fprintf(stderr, "get data\n");
+		PRNT(1, "get data\n");
 		char* out_data = (char*)g_memory_output_stream_get_data(G_MEMORY_OUTPUT_STREAM(stream));
-		unsigned long size = g_memory_output_stream_get_size(G_MEMORY_OUTPUT_STREAM(stream));
+		//unsigned long size = g_memory_output_stream_get_size(G_MEMORY_OUTPUT_STREAM(stream));
 		unsigned long sizeData = g_memory_output_stream_get_data_size(G_MEMORY_OUTPUT_STREAM(stream));
 		
 		int stride = (width*3 + 3)/4*4;
 		int imgBytes = stride*height;
 		
-		for(int i=0; i<sizeData; i+=imgBytes) {
-			int bytesLeft = sizeData-i;
-			if(bytesLeft < imgBytes) break;
+		for(long i=0; i<(long)sizeData; i+=imgBytes) {
+			long bytesLeft = sizeData-i;
+			if(bytesLeft < (long)imgBytes) break;
 			uint32_t tex = createTexture();
 			setTextureImage(tex, out_data+i, width, height);
 			frames.push_back(tex);

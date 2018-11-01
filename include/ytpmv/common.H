@@ -20,6 +20,8 @@ namespace ytpmv {
 	// 1: verbose
 	extern int verbosity;
 	
+	#define PRNT(minVerbosity, ...) if(verbosity >= minVerbosity) { fprintf(stderr, __VA_ARGS__); }
+	
 	template<class T> T clamp(T val, T min, T max) {
 		if(val < min) val = min;
 		if(val > max) val = max;
