@@ -1,7 +1,12 @@
 #include <ytpmv/common.H>
 #include <fstream>
 #include <sstream>
+#include <GL/glew.h>
+#include <glm/glm.hpp>
+
 namespace ytpmv {
+	int verbosity = 0;
+	
 	AudioSegment::AudioSegment(const Note& n, const Instrument& ins, double bpm) {
 		startSeconds = n.start.toSeconds(bpm);
 		endSeconds = n.end.toSeconds(bpm);
@@ -124,5 +129,30 @@ namespace ytpmv {
 			return(contents.str());
 		}
 		throw(errno);
+	}
+	
+	
+	uint32_t createTexture() {
+		uint32_t tex = 0;
+		glGenTextures(1, &tex);
+		assert(glGetError()==GL_NO_ERROR);
+		return tex;
+	}
+	void deleteTexture(uint32_t texture) {
+		glDeleteTextures(1, &texture);
+		assert(glGetError()==GL_NO_ERROR);
+	}
+	void setTextureImage(uint32_t texture, void* image, int w, int h) {
+		glPixelStorei(GL_UNPACK_ALIGNMENT,4);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+		glGenerateMipmap(GL_TEXTURE_2D);
+		glBindTexture(GL_TEXTURE_2D, 0);
+		assert(glGetError()==GL_NO_ERROR);
 	}
 };

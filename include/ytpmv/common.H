@@ -13,6 +13,11 @@ namespace ytpmv {
 	// maximum number of user parameters in a shader
 	static constexpr int MAXUSERPARAMS=16;
 	
+	// -1: quiet
+	// 0: normal
+	// 1: verbose
+	extern int verbosity;
+	
 	struct Time {
 		// number of patterns full before this note
 		int seq;
@@ -84,9 +89,13 @@ namespace ytpmv {
 	};
 	
 	struct Image {
-		int w,h;
-		// all images are in RGB888 format (24bpp)
+		int w, h;
+		
+		// all images are in RGB888 format (24bpp), with stride aligned to 4 bytes
 		string data;
+		
+		// if data is empty, the image is in a texture
+		int texture;
 	};
 	class VideoSource {
 	public:
@@ -228,5 +237,12 @@ namespace ytpmv {
 	};
 	
 	std::string get_file_contents(const char *filename);
+	
+	uint32_t createTexture();
+	void deleteTexture(uint32_t texture);
+	
+	// image format is rgb (24bpp).
+	// stride is w*3 rounded up to nearest multiple of 4
+	void setTextureImage(uint32_t texture, void* image, int w, int h);
 }
 #endif

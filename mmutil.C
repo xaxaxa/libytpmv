@@ -212,7 +212,7 @@ namespace ytpmv {
 	
 	// TODO(xaxaxa): convert all this code to use gst_parse_launch() instead
 	// TODO(xaxaxa): set VideoSource speed based on systemFPS and file fps
-	VideoSource loadVideo(const char* file, double systemFPS) {
+	VideoSource loadVideo(const char* file, double systemFPS, bool useTexture) {
 		GstElement *pipeline, *source, *decode, *sink, *convert;
 		GMainLoop *loop;
 		GstBus *bus;
@@ -306,7 +306,13 @@ namespace ytpmv {
 		for(int i=0; i<sizeData; i+=imgBytes) {
 			int bytesLeft = sizeData-i;
 			if(bytesLeft < imgBytes) break;
-			Image img = {width,height,string(((char*)out_data) + i, imgBytes)};
+			Image img {width, height, "", 0};
+			if(useTexture) {
+				img.texture = createTexture();
+				setTextureImage(img.texture, ((char*)out_data) + i, width, height);
+			} else {
+				img.data = string(((char*)out_data) + i, imgBytes);
+			}
 			vs.frames.push_back(img);
 		}
 		g_object_unref(stream);
@@ -317,6 +323,7 @@ namespace ytpmv {
 	void* runLoopThread(void* v) {
 		GMainLoop* loop = (GMainLoop*)v;
 		g_main_loop_run(loop);
+		return nullptr;
 	}
 	// BUG(xaxaxa): this code is really awful both in terms of efficiency and structure;
 	// there are 3 data copies of the video data made: write() to pipe, read() from pipe,

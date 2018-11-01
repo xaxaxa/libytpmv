@@ -8,7 +8,7 @@ namespace ytpmv {
 	AudioSource loadAudio(const char* file, int systemSRate);
 	
 	// load video from a file supported by gstreamer
-	VideoSource loadVideo(const char* file, double systemFPS);
+	VideoSource loadVideo(const char* file, double systemFPS, bool useTexture=false);
 	
 	// load video using gstreamer, and output frames (24bpp) into fd
 	// DO NOT USE. See comment in common.C.

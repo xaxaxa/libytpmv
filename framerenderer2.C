@@ -8,14 +8,6 @@
 #include <string>
 #include <stdexcept>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <gbm.h>
-//#include <GLES3/gl31.h>
-#include <assert.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -216,14 +208,19 @@ namespace ytpmv {
 		}
 	}
 	void FrameRenderer2::setImage(int invocation, const Image& img) {
-		const char* data = img.data.data();
-		
 		// select the texture unit
 		// start from unit 1 because unit 0 is reserved for image data transfers
 		glActiveTexture(GL_TEXTURE0 + invocation + 1);
 		
+		// if data is empty the image is already in a texture
+		if(img.data.length() == 0) {
+			glBindTexture(GL_TEXTURE_2D, img.texture);
+			return;
+		}
+		
+		const char* data = img.data.data();
 		// texture cache
-		if(textures.find(img.data.data()) != textures.end()) {
+		if(textures.find(data) != textures.end()) {
 			glBindTexture(GL_TEXTURE_2D, textures[data]);
 			return;
 		}

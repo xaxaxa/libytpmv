@@ -2,14 +2,8 @@
 #include <string>
 #include <vector>
 using namespace std;
-class GLFWwindow;
 
 namespace ytpmv {
-	// initialize glew
-	void initGL(bool createContext=true);
-	// create a window & context, then initialize glew
-	GLFWwindow* initGLWindowed(int w, int h);
-	
 	class FrameRenderer {
 	public:
 		FrameRenderer(int w, int h);

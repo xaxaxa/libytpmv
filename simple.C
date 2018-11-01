@@ -3,13 +3,12 @@
 #include <ytpmv/videorenderer.H>
 #include <ytpmv/audiorenderer.H>
 #include <ytpmv/mmutil.H>
+#include <ytpmv/glutil.H>
 #include <functional>
 #include <map>
 #include <pthread.h>
 #include <alsa/asoundlib.h>
-#include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
 
 using namespace std;
 namespace ytpmv {
@@ -338,28 +337,6 @@ namespace ytpmv {
 			play(audio, video, settings);
 			return 0;
 		}
-	}
-	
-	uint32_t createTexture() {
-		uint32_t tex = 0;
-		glGenTextures(1, &tex);
-		return tex;
-	}
-	void deleteTexture(uint32_t texture) {
-		glDeleteTextures(1, &texture);
-	}
-	void setTextureImage(uint32_t texture, void* image, int w, int h) {
-		glPixelStorei(GL_UNPACK_ALIGNMENT,4);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-		glGenerateMipmap(GL_TEXTURE_2D);
-		glBindTexture(GL_TEXTURE_2D, 0);
-		assert(glGetError()==GL_NO_ERROR);
 	}
 	
 	PlaybackSettings defaultSettings;
