@@ -73,9 +73,6 @@ namespace ytpmv {
 					shaderIDs2[key] = shaderIDs[hashKey];
 					continue;
 				}
-				if(seg.shader == nullptr && seg.fragmentShader == nullptr) {
-					throw logic_error("segment " + to_string(i) + " does not have shader code");
-				}
 				shaderIDs[hashKey] = nextIndex;
 				shaderIDs2[key] = nextIndex;
 				
@@ -83,9 +80,11 @@ namespace ytpmv {
 					shaders.push_back(defaultVertexShader);
 				else shaders.push_back(*seg.vertexShader);
 				
-				if(seg.fragmentShader == nullptr)
+				if(seg.fragmentShader != nullptr)
+					shaders.push_back(*seg.fragmentShader);
+				else if(seg.shader != nullptr)
 					shaders.push_back(FrameRenderer2_generateCode(*seg.shader, MAXUSERPARAMS));
-				else shaders.push_back(*seg.fragmentShader);
+				else shaders.push_back(defaultFragmentShader);
 				
 				nextIndex++;
 			}

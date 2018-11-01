@@ -6,6 +6,7 @@ using namespace std;
 
 namespace ytpmv {
 	extern string defaultVertexShader;
+	extern string defaultFragmentShader;
 	
 	// given only fragment shader body, generate the full shader code
 	string FrameRenderer2_generateCode(string code, int maxParams);
