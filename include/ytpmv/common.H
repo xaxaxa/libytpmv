@@ -253,7 +253,12 @@ namespace ytpmv {
 		vector<VideoKeyFrame> keyframes;
 		
 		VideoSegment() {}
+		
+		// create a video segment with the timing info from n, and
+		// using source src.
 		VideoSegment(const Note& n, VideoSource* src, double bpm);
+		// create a video segment using source src.
+		VideoSegment(VideoSource* src, double startSeconds, double endSeconds);
 		
 		double durationSeconds() const {
 			return endSeconds - startSeconds;
