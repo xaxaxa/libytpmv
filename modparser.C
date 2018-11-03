@@ -18,20 +18,24 @@ namespace ytpmv {
 	
 	struct PlayerState {
 		int channels;
-		int curSeq;
-		int curRow;
-		int curRowAbs;
+		int curSeq = 0;
+		int curRow = 0;
+		int curRowAbs = 0;
 		double bpm = 0;
 		vector<int> activeNotes;
 		vector<double> defaultVolumes;
 		vector<Note>* outNotes;
 		vector<int> lastInstrument;
+		
+		double tickDuration = 1./50;
+		int ticksPerRow = 6;
+		// when tickMode is true, curRow and curRowAbs are the number
+		// of ticks from the beginning of the pattern and beginning of the song
+		bool tickMode = false;
+		
 		PlayerState(int channels, vector<Note>* outNotes) {
 			this->channels = channels;
 			this->outNotes = outNotes;
-			curSeq = 0;
-			curRow = 0;
-			curRowAbs = 0;
 			activeNotes.resize(channels, -1);
 			defaultVolumes.resize(0);
 			lastInstrument.resize(channels);
@@ -39,9 +43,6 @@ namespace ytpmv {
 	};
 	void parseModPattern(const uint8_t* patternData, int rows, PlayerState& ps) {
 		int rowBytes = ps.channels*4;
-		int ticksPerRow = 6;
-		double tickDuration = 1./50;
-		
 		int lastNote[ps.channels];
 		memset(lastNote,0,sizeof(lastNote));
 		for(int row=0; row<rows; row++) {
@@ -73,12 +74,18 @@ namespace ytpmv {
 					uint8_t tmp = effect&0xff;
 					if(tmp != 0) {
 						if(tmp < 0x20) {
-							ticksPerRow = effect&0xff;
+							ps.ticksPerRow = effect&0xff;
 						} else {
-							tickDuration = 2.5/double(effect&0xff);
+							ps.tickDuration = 2.5/double(effect&0xff);
+							if(ps.tickMode) {
+								ps.bpm = 60./ps.tickDuration;
+								PRNT(0, "row %d, channel %d, effect %x: bpm %f\n", row, channel, effect, ps.bpm);
+							}
 						}
-						ps.bpm = 60./(ticksPerRow*tickDuration);
-						PRNT(0, "row %d, channel %d, effect %x: bpm %f\n", row, channel, effect, ps.bpm);
+						if(!ps.tickMode) {
+							ps.bpm = 60./(ps.ticksPerRow*ps.tickDuration);
+							PRNT(0, "row %d, channel %d, effect %x: bpm %f\n", row, channel, effect, ps.bpm);
+						}
 					}
 				}
 				// if an instrument is specified without a note, start a new note with the last pitch
@@ -124,9 +131,9 @@ namespace ytpmv {
 				
 				if(effect == 0xd00) shouldBreak = true;
 			}
-			//printf("\n");
-			ps.curRow++;
-			ps.curRowAbs++;
+			int incr = ps.tickMode ? ps.ticksPerRow : 1;
+			ps.curRow += incr;
+			ps.curRowAbs += incr;
 			if(shouldBreak) break;
 		}
 		ps.curRow = 0;
@@ -139,7 +146,7 @@ namespace ytpmv {
 		}
 	}
 	void parseMod(const uint8_t* inData, int inLen, SongInfo& outInf,
-				vector<Instrument>& outInstruments, vector<Note>& outNotes) {
+				vector<Instrument>& outInstruments, vector<Note>& outNotes, bool tickMode) {
 
 		// http://coppershade.org/articles/More!/Topics/Protracker_File_Format/
 		
@@ -147,6 +154,7 @@ namespace ytpmv {
 			throw runtime_error((string(".mod file must be at least 1084 bytes, but is ") + to_string(inLen) + " bytes").c_str());
 		outInf.name = getString(inData, 20);
 		outInf.bpm = 125*4;
+		if(tickMode) outInf.bpm *= 6;
 		
 		// parse samples
 		vector<double> defaultVolumes;
@@ -230,6 +238,7 @@ namespace ytpmv {
 		// render song
 		PlayerState ps(channels, &outNotes);
 		ps.defaultVolumes = defaultVolumes;
+		ps.tickMode = tickMode;
 		for(int i=0; i<songLength; i++) {
 			int pattern = seqTable[i];
 			const uint8_t* patternData = inData + 1084 + patternBytes*pattern;
@@ -269,7 +278,7 @@ namespace ytpmv {
 			uint16_t repIndex = getShort(instrData + 26)*2;
 			uint16_t repLen = getShort(instrData + 28)*2;
 			if(repLen == 0) continue;
-			while(ins.sampleData.length() < 1024*16) {
+			while(ins.sampleData.length() < 1024*64) {
 				ins.sampleData.append(ins.sampleData.substr(repIndex*CHANNELS, repLen*CHANNELS));
 			}
 		}
