@@ -174,7 +174,7 @@ namespace ytpmv {
 					const VideoSegment& seg = segments.at((*it).first);
 					double t = timeSeconds-seg.startSeconds;
 					
-					textures[k] = seg.source->getFrame(t*seg.speed);
+					textures[k] = seg.source->getFrame(t*seg.speed + seg.offsetSeconds);
 					fr.setImage(k, textures[k]);
 					relTimeSeconds[k] = float(t);
 					
@@ -265,7 +265,7 @@ namespace ytpmv {
 				
 				// find source frame
 				double relTime = timeSeconds-seg.startSeconds;
-				textures[k] = seg.source->getFrame(relTime*seg.speed);
+				textures[k] = seg.source->getFrame(relTime*seg.speed + seg.offsetSeconds);
 				fr.setImage(k, textures[k]);
 				
 				// set parameters

@@ -200,6 +200,7 @@ namespace ytpmv {
 	class VideoSegment {
 	public:
 		double startSeconds, endSeconds;
+		double offsetSeconds = 0.0; // offset into source video
 		double speed = 1.0; // 1 => original speed
 		VideoSource* source = nullptr;
 		int zIndex = 0;
