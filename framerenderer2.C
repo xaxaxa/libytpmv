@@ -273,9 +273,14 @@ namespace ytpmv {
 		// copy vertex data into buffer
 		int N = (int)enabledRenderers.size();
 		vector<float> vertexBuffer;
+		
+		int totalVert = 0;
+		for(int i=0; i<N; i++)
+			totalVert += (int) vertexes.at(i)->size();
+		vertexBuffer.reserve(totalVert);
+		
 		for(int i=0; i<N; i++) {
 			const vector<float>& tmp = *vertexes.at(i);
-			vertexBuffer.reserve(vertexBuffer.size() + tmp.size());
 			vertexBuffer.insert(vertexBuffer.end(),tmp.begin(),tmp.end());
 		}
 		glBufferData(GL_ARRAY_BUFFER, vertexBuffer.size()*sizeof(float),
