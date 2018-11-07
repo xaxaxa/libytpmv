@@ -189,8 +189,8 @@ namespace ytpmv {
 				renderDelay = getTimeMicros() - micros1;
 				
 				if((micros1 - lastPrint) >= 1000000) {
-					PRNT(0, "\033[44;37mFRAMERATE: %d fps; RENDERDELAY: %d us\033[0m\n",
-						int(frames-lastFrames), int(renderDelay));
+					PRNT(0, "\033[44;37mFRAMERATE: %d fps; RENDERDELAY: %d us; concurrent segs: %d; offs: %lu ms\033[0m\n",
+						int(frames-lastFrames), int(renderDelay), videoRenderer->concurrentSegments(), offs/1000);
 					lastPrint = micros1;
 					lastFrames = frames;
 				}

@@ -23,5 +23,7 @@ namespace ytpmv {
 		
 		// returns true if we are still within bounds of the video
 		bool advanceTo(int frame);
+		
+		int concurrentSegments();
 	};
 };

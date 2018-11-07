@@ -387,4 +387,7 @@ namespace ytpmv {
 	bool VideoRendererTimeDriven::advanceTo(int frame) {
 		return st->advanceTo(frame);
 	}
+	int VideoRendererTimeDriven::concurrentSegments() {
+		return (int)st->notesActive.size();
+	}
 }
