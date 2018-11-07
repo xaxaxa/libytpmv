@@ -267,7 +267,7 @@ namespace ytpmv {
 		vertexVariableSizes.at(invocation) = varSizes;
 	}
 	void FrameRenderer2::draw() {
-		glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1.0f, 0.0f, 20.0f);
+		glm::mat4 proj = glm::infinitePerspective(glm::radians(45.0f), float(w)/h, 1.0f);
 		
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
