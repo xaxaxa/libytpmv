@@ -44,6 +44,7 @@ namespace ytpmv {
 	void parseModPattern(const uint8_t* patternData, int rows, PlayerState& ps) {
 		int rowBytes = ps.channels*4;
 		int lastNote[ps.channels];
+		int incr = 1;
 		memset(lastNote,0,sizeof(lastNote));
 		for(int row=0; row<rows; row++) {
 			const uint8_t* rowData = patternData + row*rowBytes;
@@ -88,6 +89,8 @@ namespace ytpmv {
 						}
 					}
 				}
+				incr = ps.tickMode ? ps.ticksPerRow : 1;
+				
 				// if an instrument is specified without a note, start a new note with the last pitch
 				if(notePeriod == 0 && instrumentID != 0) {
 					notePeriod = lastNote[channel];
@@ -106,7 +109,7 @@ namespace ytpmv {
 					}
 					Note n;
 					n.start = {ps.curSeq, ps.curRow, ps.curRowAbs, 0.};
-					n.end = {ps.curSeq, ps.curRow+1, ps.curRowAbs+1, 0.};
+					n.end = {ps.curSeq, ps.curRow+incr, ps.curRowAbs+incr, 0.};
 					n.channel = channel;
 					n.instrument = instrumentID;
 					n.pitchSemitones = semitones;
@@ -118,7 +121,7 @@ namespace ytpmv {
 					int j = ps.activeNotes.at(channel);
 					if(j >= 0) {
 						Note& n = ps.outNotes->at(j);
-						n.end = {ps.curSeq, ps.curRow+1, ps.curRowAbs+1, 0.};
+						n.end = {ps.curSeq, ps.curRow+incr, ps.curRowAbs+incr, 0.};
 						// set volume
 						if((effect & 0xF00) == 0xC00) {
 							double dB = log10(double(effect&0xff)/64.)*20;
@@ -131,7 +134,6 @@ namespace ytpmv {
 				
 				if(effect == 0xd00) shouldBreak = true;
 			}
-			int incr = ps.tickMode ? ps.ticksPerRow : 1;
 			ps.curRow += incr;
 			ps.curRowAbs += incr;
 			if(shouldBreak) break;
