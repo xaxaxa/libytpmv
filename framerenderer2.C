@@ -107,10 +107,17 @@ namespace ytpmv {
 		glGenFramebuffers(1, &fbo);
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		
-		glGenRenderbuffers(1, &rbo);
-		glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB8, w, h);
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER,  GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbo);
+		glGenRenderbuffers(2, rbo);
+		
+		// color buffer
+		glBindRenderbuffer(GL_RENDERBUFFER, rbo[0]);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, w, h);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbo[0]);
+		
+		// depth buffer
+		glBindRenderbuffer(GL_RENDERBUFFER, rbo[1]);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, w, h);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo[1]);
 		
 		if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 			throw runtime_error("framebuffer not complete\n");
