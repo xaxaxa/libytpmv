@@ -30,6 +30,8 @@ namespace ytpmv {
 		// sets the list of renderers that are called (invocations)
 		void setEnabledRenderers(vector<int> enabledRenderers);
 		
+		void setInstanceCount(vector<int> instanceCount);
+		
 		// set user params; params[x][y] is the yth parameter of invocation x
 		void setUserParams(vector<vector<float> > params);
 		
@@ -79,6 +81,7 @@ namespace ytpmv {
 		int nextTextureUnit = 0;
 		
 		vector<int> enabledRenderers;
+		vector<int> instanceCount;
 		vector<vector<float> > userParams;
 		float secondsAbs;
 		vector<float> secondsRel;

@@ -207,6 +207,9 @@ namespace ytpmv {
 			vertexVariableSizes[i] = nullptr;
 		}
 	}
+	void FrameRenderer2::setInstanceCount(vector<int> instanceCount) {
+		this->instanceCount = instanceCount;
+	}
 	void FrameRenderer2::setUserParams(vector<vector<float> > params) {
 		assert(int(params.size()) <= maxConcurrent);
 		userParams = params;
@@ -346,7 +349,7 @@ namespace ytpmv {
 				if(loc >= 0) glUniformMatrix4fv(loc, 1, false, glm::value_ptr(proj));
 			}
 			// draw
-			glDrawArrays(GL_TRIANGLES, 0, nVertex);
+			glDrawArraysInstanced(GL_TRIANGLES, 0, nVertex, instanceCount.at(i));
 			
 			vertexOffs += vert.size();
 		}

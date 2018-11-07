@@ -210,6 +210,7 @@ namespace ytpmv {
 		// V0var0_0, V0var0_1, V0var0_2, V0var1_0, V0var1_1, V1var0_0, ...
 		// (vertex variables are interleaved)
 		vector<float> vertexes;
+		int instances = 1;
 		
 		// number of elements in each vertex attribute variable; null terminated
 		// e.g. {3, 2, 0} for a x,y,z vertex coordinate and a x,y texture coordinate

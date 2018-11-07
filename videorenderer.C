@@ -149,13 +149,16 @@ namespace ytpmv {
 			
 			// collect renderers and parameters for this region
 			vector<int> enabledRenderers;
+			vector<int> instanceCount;
 			vector<vector<float> > params;
 			for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
 				const VideoSegment& s = segments.at((*it).first);
 				enabledRenderers.push_back(shaderCache.getShaderProgramIndex(s));
 				params.push_back(s.shaderParams);
+				instanceCount.push_back(s.instances);
 			}
 			fr.setEnabledRenderers(enabledRenderers);
+			fr.setInstanceCount(instanceCount);
 			fr.setUserParams(params);
 			
 			int j=0;
@@ -333,6 +336,7 @@ namespace ytpmv {
 			if(encounteredEvent) {
 				// collect renderers and parameters for this region
 				vector<int> enabledRenderers;
+				vector<int> instanceCount;
 				int lastZIndex = -(1<<29);
 				curUserParams.clear();
 				for(auto it = notesActive.begin(); it!=notesActive.end(); it++) {
@@ -340,10 +344,12 @@ namespace ytpmv {
 					
 					enabledRenderers.push_back(shaderCache.getShaderProgramIndex(s));
 					curUserParams.push_back(s.shaderParams);
+					instanceCount.push_back(s.instances);
 					assert(s.zIndex >= lastZIndex);
 					lastZIndex = s.zIndex;
 				}
 				fr.setEnabledRenderers(enabledRenderers);
+				fr.setInstanceCount(instanceCount);
 				fr.setUserParams(curUserParams);
 				
 				int i=0;
