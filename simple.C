@@ -84,6 +84,7 @@ namespace ytpmv {
 		// that is, getTimeMicros() - offsetClockTimeMicros will return the current
 		// playback time in microseconds
 		volatile uint64_t offsetClockTimeMicros;
+		int audioLatencyMicros = 100000;
 		
 		
 		/*
@@ -110,7 +111,7 @@ namespace ytpmv {
 				audioSegments(audio),
 				settings(settings) {
 			
-			offsetClockTimeMicros = getTimeMicros() + 10000000;
+			offsetClockTimeMicros = getTimeMicros() + 1000000000;
 			
 			audioStart = findStart(audio);
 			playStart = audioStart;
@@ -123,6 +124,8 @@ namespace ytpmv {
 				if(videoStart < playStart) playStart = videoStart;
 			}
 			
+			playStart += settings.skipToSeconds;
+			
 			// open audio device
 			int err;
 			if ((err = snd_pcm_open(&alsaHandle, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
@@ -134,7 +137,7 @@ namespace ytpmv {
 										CHANNELS,	// channels
 										srate,		// sample rate
 										1,			// resample ratio
-										50000)		// latency in us
+										audioLatencyMicros)		// latency in us
 										) < 0) {
 				throw runtime_error(string("Playback open error: ") + snd_strerror(err));
 			}
@@ -148,8 +151,10 @@ namespace ytpmv {
 					uint64_t t = getTimeMicros();
 					uint64_t tPlayback = round(playStart*1e6);
 					offsetClockTimeMicros = t-tPlayback;
-					usleep((useconds_t)round((audioStart-playStart)*1e6));
+					if(audioStart > playStart)
+						usleep((useconds_t)round((audioStart-playStart)*1e6));
 				}
+				// calculate offset between monotonic time and time within playback
 				uint64_t t = getTimeMicros();
 				uint64_t tPlayback = round(double(samplesWritten)*1e6/srate);
 				offsetClockTimeMicros = t-tPlayback;
@@ -162,26 +167,35 @@ namespace ytpmv {
 				snd_pcm_writei(alsaHandle, data, len/CHANNELS);
 			});
 		}
+		
+		double getVideoTime(uint64_t offs, uint64_t renderDelay) {
+			int64_t t = int64_t(getTimeMicros() - offs);
+			t += renderDelay;
+			t -= (int64_t)audioLatencyMicros;
+			return double(t)*1e-6;
+		}
 		void videoThread() {
 			uint64_t renderDelay = 0;
 			uint64_t lastPrint = 0;
 			uint64_t lastFrames = 0;
 			uint64_t frames = 0;
+			uint64_t offs = offsetClockTimeMicros;
 			
 			do {
-				uint64_t offs = offsetClockTimeMicros;
-				int frame;
-				if(offs == 0) frame = 0;
-				else {
-					int64_t t = int64_t(getTimeMicros() - offs);
-					t -= renderDelay;
-					frame = (int)round(double(t)*1e-6*fps);
-				}
+				uint64_t newOffs = offsetClockTimeMicros;
+				
+				// if video hasn't started yet, apply timechange immediately.
+				// otherwise, slowly mix in new time offset so video doesn't jump.
+				if(getVideoTime(offs, renderDelay) < playStart)
+					offs = newOffs;
+				else
+					offs = offs - (offs>>6) + (newOffs>>6);
+				
+				int frame = (int)round(getVideoTime(offs, renderDelay)*fps);
+				uint64_t micros1 = getTimeMicros();
 				
 				//PRNT(0, "ADVANCE TO FRAME %d\n", frame);
 				if(!videoRenderer->advanceTo(frame)) break;
-				
-				uint64_t micros1 = getTimeMicros();
 				
 				videoRenderer->drawFrame();
 				glfwSwapBuffers(window);
