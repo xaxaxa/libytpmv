@@ -187,9 +187,10 @@ namespace ytpmv {
 	};
 	
 	vector<float> genRectangle(float x1, float y1, float x2, float y2);
-	vector<float> genRectangleWithCenter(float x1, float y1, float x2, float y2, float tx1=0., float ty1=0., float tx2=1., float ty2=1.);
+	vector<float> genRectangleWithCenter(float x1, float y1, float x2, float y2, float tx1=0., float ty1=0., float tx2=1., float ty2=1., float z=0.);
 	
 	vector<float> genRectangle(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3);
+	vector<float> genParallelpiped();
 	
 	struct VideoKeyFrame {
 		// time of this keyframe relative to segment start

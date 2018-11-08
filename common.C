@@ -93,17 +93,17 @@ namespace ytpmv {
 		};*/
 	}
 	
-	vector<float> genRectangleWithCenter(float x1, float y1, float x2, float y2, float tx1, float ty1, float tx2, float ty2) {
-		float cx = (x1+x2)/2., cy = (y1+y2)/2., cz = 0.;
+	vector<float> genRectangleWithCenter(float x1, float y1, float x2, float y2, float tx1, float ty1, float tx2, float ty2, float z) {
+		float cx = (x1+x2)/2., cy = (y1+y2)/2., cz = z;
 		// vertex attribute layout must be (x,y,z) (cx,cy,cz) (textureX,textureY)
 		return {
-		   x1, y1, 0.0f, cx, cy, cz, tx1, ty1,
-		   x2, y1, 0.0f, cx, cy, cz, tx2, ty1,
-		   x2, y2, 0.0f, cx, cy, cz, tx2, ty2,
+		   x1, y1, z, cx, cy, cz, tx1, ty1,
+		   x2, y1, z, cx, cy, cz, tx2, ty1,
+		   x2, y2, z, cx, cy, cz, tx2, ty2,
 		   
-		   x2, y2, 0.0f, cx, cy, cz, tx2, ty2,
-		   x1, y2, 0.0f, cx, cy, cz, tx1, ty2,
-		   x1, y1, 0.0f, cx, cy, cz, tx1, ty1
+		   x2, y2, z, cx, cy, cz, tx2, ty2,
+		   x1, y2, z, cx, cy, cz, tx1, ty2,
+		   x1, y1, z, cx, cy, cz, tx1, ty1
 		};
 	}
 	
@@ -132,6 +132,26 @@ namespace ytpmv {
 		};
 	}
 	
+	vector<float> genParallelpiped() {
+		// vertex attribute layout must be (x,y,z) (textureX,textureY)
+		
+		vector<float> lower = genRectangle(-1,-1,-1,1,-1,-1,1,1,-1);
+		vector<float> upper = genRectangle(-1,-1,1,1,-1,1,1,1,1);
+		vector<float> left = genRectangle(-1,-1,-1,-1,-1,1,-1,1,1);
+		vector<float> right = genRectangle(1,-1,-1,1,-1,1,1,1,1);
+		vector<float> top = genRectangle(-1,-1,-1,1,-1,-1,1,-1,1);
+		vector<float> bottom = genRectangle(-1,1,-1,1,1,-1,1,1,1);
+		
+		vector<float> res;
+		res.reserve(5*6*6);
+		res.insert(res.end(),lower.begin(),lower.end());
+		res.insert(res.end(),upper.begin(),upper.end());
+		res.insert(res.end(),left.begin(),left.end());
+		res.insert(res.end(),right.begin(),right.end());
+		res.insert(res.end(),top.begin(),top.end());
+		res.insert(res.end(),bottom.begin(),bottom.end());
+		return res;
+	}
 	
 	
 	VideoSegment::VideoSegment(const Note& n, VideoSource* src, double bpm) {
