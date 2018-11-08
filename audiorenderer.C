@@ -77,7 +77,8 @@ namespace ytpmv {
 		PRNT(0, "populating pitch shift cache...\n");
 		for(const AudioSegment& s: segments) {
 			double relativePitch = s.pitch/s.tempo;
-			cache.getPitchShiftedSample(s.sampleData, s.sampleLength, relativePitch);
+			if(relativePitch != 1.0)
+				cache.getPitchShiftedSample(s.sampleData, s.sampleLength, relativePitch);
 		}
 		PRNT(0, "sample cache populated; %d samples\n", (int)cache.entries.size());
 		
