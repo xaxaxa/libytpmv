@@ -257,7 +257,7 @@ namespace ytpmv {
 		vector<float> shaderParams;
 		vector<VideoKeyFrame> keyframes;
 		
-		VideoSegment() {}
+		VideoSegment();
 		
 		// create a video segment with the timing info from n, and
 		// using source src.
