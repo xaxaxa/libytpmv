@@ -262,6 +262,9 @@ namespace ytpmv {
 		vector<float> shaderParams;
 		vector<VideoKeyFrame> keyframes;
 		
+		function<void(vector<float>& out, const vector<float>& kf1, const vector<float>& kf2,
+						double t1, double t2, double t)> interpolateKeyframes;
+		
 		VideoSegment();
 		
 		// create a video segment with the timing info from n, and

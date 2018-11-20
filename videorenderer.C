@@ -258,6 +258,15 @@ namespace ytpmv {
 			// draw to screen
 			fr.setRenderToScreen();
 		}
+		void interpolateKeyframes(vector<float>& out, const vector<float>& kf1, const vector<float>& kf2,
+									double t1, double t2, double t) {
+			int sz = (int)out.size();
+			
+			double a = (t1==t2) ? 0. : clamp((t-t1)/(t2-t1),0.,1.);
+			double b = 1. - a;
+			for(int i=0; i<sz; i++)
+				out[i] = b*kf1.at(i) + a*kf2.at(i);
+		}
 		string drawFrame(bool render = false) {
 			string ret;
 			int k=0;
@@ -277,11 +286,30 @@ namespace ytpmv {
 				relTimeSeconds[k] = float(timeSeconds-seg.startSeconds);
 				
 				// find current keyframe
-				for(auto& kf: seg.keyframes) {
-					if(kf.relTimeSeconds <= relTime)
-						curUserParams.at(k) = kf.shaderParams;
+				int kfIndex = -1;
+				double kfTime = 0.;
+				const vector<float>* kfLeft = &seg.shaderParams;
+				for(int i=0; i<(int)seg.keyframes.size(); i++) {
+					if(seg.keyframes[i].relTimeSeconds <= relTime)
+						kfIndex = i;
 					else break;
 				}
+				if(kfIndex >= 0) {
+					kfLeft = &seg.keyframes[kfIndex].shaderParams;
+					kfTime = seg.keyframes[kfIndex].relTimeSeconds;
+				}
+				// find next keyframe
+				const vector<float>* kfRight = kfLeft;
+				double kfRightTime = kfTime;
+				if((kfIndex+1) < (int)seg.keyframes.size()) {
+					kfRight = &seg.keyframes[kfIndex+1].shaderParams;
+					kfRightTime = seg.keyframes[kfIndex+1].relTimeSeconds;
+				}
+				
+				if(seg.interpolateKeyframes != nullptr)
+					seg.interpolateKeyframes(curUserParams.at(k), *kfLeft, *kfRight, kfTime, kfRightTime, relTime);
+				else interpolateKeyframes(curUserParams.at(k), *kfLeft, *kfRight, kfTime, kfRightTime, relTime);
+				
 				k++;
 			}
 			fr.setTime(float(timeSeconds), relTimeSeconds);
