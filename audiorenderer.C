@@ -15,6 +15,7 @@ namespace ytpmv {
 	}
 
 	struct ActiveNoteKeyFrame {
+		// absolute time
 		int timeSamples;
 		double amplitude[CHANNELS];
 	};
@@ -46,6 +47,9 @@ namespace ytpmv {
 					
 					int relTime = t-n.startTimeSamples;
 					int relTimeLeft = n.endTimeSamples-t;
+					int kfLength = n.kfRight->timeSamples - kfLeft->timeSamples;
+					double kfTimeNormalized = double(t - kfLeft->timeSamples)/double(kfLength);
+					
 					int sampleTime = relTime*n.speed;
 					if(sampleTime<0) continue;
 					if(sampleTime >= n.waveformLength/CHANNELS) continue;
@@ -53,7 +57,9 @@ namespace ytpmv {
 					
 					for(int k=0; k<CHANNELS; k++) {
 						float sample = n.waveform[sampleTime*CHANNELS+k];
-						double amplitude = kfLeft->amplitude[k];
+						double amplitude = kfLeft->amplitude[k] * (1.-kfTimeNormalized)
+										+ n.kfRight->amplitude[k] * kfTimeNormalized;
+						
 						
 						int fadeSamples=20;
 						double scale = 1./(double)fadeSamples;
@@ -109,6 +115,7 @@ namespace ytpmv {
 		for(int i=0;i<evts-1;i++) {
 			NoteEvent evt = events[i];
 			int curTimeSamples = events[i].t*srate;
+			int nextTimeSamples = events[i+1].t*srate;
 			
 			// enable/disable sound
 			if(!evt.off) { // note on
@@ -121,7 +128,7 @@ namespace ytpmv {
 			}
 			
 			// calculate time until next event
-			int durationSamples = (events[i+1].t - evt.t)*srate;
+			int durationSamples = nextTimeSamples-curTimeSamples;
 			if(durationSamples < 3) continue;
 			
 			// render this region
@@ -179,7 +186,7 @@ namespace ytpmv {
 			renderRegion(tmp, notesActive.size(), curTimeSamples, durationSamples, srate,
 						((float*)buf.data()) + bufIndex);
 			
-			if(buf.size() > 8192) {
+			if(buf.size() > 1024*32) {
 				writeData((float*)buf.data(),buf.length());
 				buf.resize(0);
 			}

@@ -125,6 +125,11 @@ namespace ytpmv {
 						// set volume
 						if((effect & 0xF00) == 0xC00) {
 							double dB = log10(double(effect&0xff)/64.)*20;
+							
+							double lastVolume = 1.;
+							if(n.keyframes.size() > 0) lastVolume = n.keyframes.back().amplitudeDB;
+							
+							n.keyframes.push_back({double(ps.curRowAbs-n.start.absRow), lastVolume, 0.});
 							n.keyframes.push_back({double(ps.curRowAbs-n.start.absRow), dB-n.amplitudeDB, 0.});
 							//fprintf(stderr, "KEYFRAME: %f\n", dB);
 						}
