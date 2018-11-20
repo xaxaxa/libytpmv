@@ -173,7 +173,8 @@ namespace ytpmv {
 				if(double(samplesWritten)/srate < settings.skipToSeconds) return;
 				
 				for(int i=0; i<len; i++) data[i] *= settings.volume;
-				snd_pcm_writei(alsaHandle, data, len/CHANNELS);
+				while(snd_pcm_writei(alsaHandle, data, len/CHANNELS) == -EPIPE)
+					snd_pcm_prepare(alsaHandle);
 			});
 		}
 		
