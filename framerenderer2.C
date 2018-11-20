@@ -104,6 +104,7 @@ namespace ytpmv {
 	}
 	FrameRenderer2::FrameRenderer2(int w, int h): w(w), h(h) {
 		//_init_opengl__2();
+		
 		glGenFramebuffers(1, &fbo);
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		
@@ -111,21 +112,37 @@ namespace ytpmv {
 		
 		// color buffer
 		glBindRenderbuffer(GL_RENDERBUFFER, rbo[0]);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, w, h);
+		glRenderbufferStorageMultisample(GL_RENDERBUFFER, oversample, GL_RGBA8, w, h);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbo[0]);
 		
 		// depth buffer
 		glBindRenderbuffer(GL_RENDERBUFFER, rbo[1]);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, w, h);
+		glRenderbufferStorageMultisample(GL_RENDERBUFFER, oversample, GL_DEPTH_COMPONENT32F, w, h);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo[1]);
+		
+		assert(glGetError()==GL_NO_ERROR);
 		
 		if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 			throw runtime_error("framebuffer not complete\n");
 		}
 		
+		// non-oversampling output buffer
+		if(oversample > 1) {
+			glGenFramebuffers(1, &outp_fbo);
+			glBindFramebuffer(GL_FRAMEBUFFER, outp_fbo);
+			glGenRenderbuffers(1, &outp_rbo);
+			glBindRenderbuffer(GL_RENDERBUFFER, outp_rbo);
+			
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, w, h);
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, outp_rbo);
+			assert(glGetError()==GL_NO_ERROR);
+			
+			if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+				throw runtime_error("output framebuffer not complete\n");
+			}
+		}
+		
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		
-		
 		glViewportIndexedf(0,0,0,w,h);
 		
 		// Dark blue background
@@ -297,6 +314,10 @@ namespace ytpmv {
 		
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_BLEND);
+		glEnable(GL_POLYGON_SMOOTH);
+		glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
+		//glBlendFunc(GL_SRC_ALPHA_SATURATE, GL_ONE);
+		
 		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glDepthFunc(GL_LEQUAL);    // Set the type of depth-test
 		//glShadeModel(GL_SMOOTH);   // Enable smooth shading
@@ -370,12 +391,28 @@ namespace ytpmv {
 	string FrameRenderer2::render() {
 		draw();
 		
+		if(oversample > 1) {
+			// Bind the multisampled FBO for reading
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+			// Bind the normal FBO for drawing
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, outp_fbo);
+			// Blit the multisampled FBO to the normal FBO
+			glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+			// Bind the normal FBO for reading
+			glBindFramebuffer(GL_FRAMEBUFFER, outp_fbo);
+			assert(glGetError()==GL_NO_ERROR);
+		}
+		
 		string ret;
 		ret.resize(w*h*4);
 		glPixelStorei(GL_PACK_ALIGNMENT,4);
 		glReadPixels(0,0,w,h,  GL_RGBA,  GL_UNSIGNED_INT_8_8_8_8_REV, (void*)ret.data());
 		
 		assert(glGetError()==GL_NO_ERROR);
+		
+		if(oversample > 1)
+			glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		
 		//PRNT(0, "%d\n", (int)glGetError());
 		return ret;
 	}
