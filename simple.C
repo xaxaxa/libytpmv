@@ -46,11 +46,20 @@ namespace ytpmv {
 	}
 	void trimSource(string name, double startTimeSeconds, double lengthSeconds) {
 		Source& src = *getSource(name);
-		if(src.audio != nullptr) {
-			int startSamples = (int)round(startTimeSeconds*44100);
-			int endSamples = (lengthSeconds==-1.)?string::npos: startSamples+(int)round(lengthSeconds*44100);
-			src.audio->sample = src.audio->sample.substr(startSamples*CHANNELS, endSamples*CHANNELS);
-		}
+		if(src.audio != nullptr) trimSourceAudio(name, startTimeSeconds, lengthSeconds);
+		if(src.video != nullptr) trimSourceVideo(name, startTimeSeconds, lengthSeconds);
+	}
+	void trimSourceAudio(string name, double startTimeSeconds, double lengthSeconds) {
+		Source& src = *getSource(name);
+		assert(src.audio != nullptr);
+		int startSamples = (int)round(startTimeSeconds*44100);
+		int endSamples = (lengthSeconds==-1.)?string::npos: startSamples+(int)round(lengthSeconds*44100);
+		src.audio->sample = src.audio->sample.substr(startSamples*CHANNELS, endSamples*CHANNELS);
+	}
+	void trimSourceVideo(string name, double startTimeSeconds, double lengthSeconds) {
+		Source& src = *getSource(name);
+		assert(src.video != nullptr);
+		src.video->offsetSeconds += startTimeSeconds;
 	}
 	
 	double findStart(const vector<AudioSegment>& segments) {

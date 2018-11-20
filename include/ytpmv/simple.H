@@ -23,6 +23,9 @@ namespace ytpmv {
 	// delete from the beginning of the audio and video clip
 	void trimSource(string name, double startTimeSeconds, double lengthSeconds=-1);
 	
+	void trimSourceAudio(string name, double startTimeSeconds, double lengthSeconds=-1);
+	void trimSourceVideo(string name, double startTimeSeconds, double lengthSeconds=-1);
+	
 	
 	extern PlaybackSettings defaultSettings;
 	extern string verb;
