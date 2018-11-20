@@ -66,8 +66,10 @@ namespace ytpmv {
 		int maxParams = 0;
 		int maxConcurrent = 0;
 		int w,h;
+		int oversample = 8;
 		unsigned int fbo;
 		unsigned int rbo[2];
+		unsigned int outp_fbo = 0, outp_rbo = 0;
 		uint32_t vertexbuffer;
 		
 		// system maximum texture units
