@@ -153,7 +153,14 @@ namespace ytpmv {
 		return res;
 	}
 	
-	
+	VideoSegment::VideoSegment() {
+		startSeconds = 0.;
+		endSeconds = 0.;
+		vertexes = genRectangle(-1, -1, 1, 1);
+		vertexVarSizes[0] = 3;
+		vertexVarSizes[1] = 2;
+		vertexVarSizes[2] = 0;
+	}
 	VideoSegment::VideoSegment(const Note& n, VideoSource* src, double bpm) {
 		startSeconds = n.start.toSeconds(bpm);
 		endSeconds = n.end.toSeconds(bpm);
