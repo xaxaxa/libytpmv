@@ -103,10 +103,15 @@ namespace ytpmv {
 		string name;
 		double speed = 1.;
 		
+		// offset into the original video (without speed change applied)
+		double offsetSeconds = 0.;
+		
 		// called at start of movie
 		virtual void prepare()=0;
 		
-		// returns a opengl texture for this frame
+		// returns a opengl texture for this frame;
+		// should take into account speed and offsetSeconds:
+		// timeInVideo = timeSeconds*speed + offsetSeconds
 		virtual int32_t getFrame(double timeSeconds)=0;
 		
 		// called when a texture returned by getFrame is no longer needed

@@ -480,7 +480,8 @@ namespace ytpmv {
 		g_object_unref(stream);
 	}
 	int32_t MemoryVideoSource::getFrame(double timeSeconds) {
-		int i = clamp((int)round(timeSeconds*speed*fps), 0, int(frames.size())-1);
+		timeSeconds = timeSeconds*speed + offsetSeconds;
+		int i = clamp((int)round(timeSeconds*fps), 0, int(frames.size())-1);
 		return frames.at(i);
 	}
 	void MemoryVideoSource::releaseFrame(uint32_t texture) {
