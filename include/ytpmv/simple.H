@@ -12,10 +12,22 @@ namespace ytpmv {
 	void loadSource(Source& src, string audioFile, string videoFile,
 					double audioPitch=1., double audioTempo=1., double videoSpeed=1.);
 	extern bool loadAudioOnly;
+	extern string sourceDir;
 	
 	// load a source and add it to the source library as name; see loadSource()
 	Source* addSource(string name, string audioFile, string videoFile,
 					double audioPitch=1., double audioTempo=1., double videoSpeed=1.);
+	
+	// set the base path that is prepended to source filenames by addSource2()
+	void setSourceDir(string sourceDir);
+	
+	// add a source using audio and video from videoFile;
+	// if videoFile is XXX.mp4 and XXX.wav exists,
+	// use XXX.wav as audio source.
+	// source name is videoFile without filename extension
+	Source* addSource2(string videoFile, double pitch=1., double tempo=1., double volumeDB=0., double offsetSeconds=0., string audioFile = "");
+	
+	Source* dupSource(string fromName, string toName, double pitch=1., double tempo=1., double volumeDB=0.);
 	
 	// retrieve a source by name from source library
 	Source* getSource(string name);

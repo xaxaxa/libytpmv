@@ -126,12 +126,24 @@ namespace ytpmv {
 						if((effect & 0xF00) == 0xC00) {
 							double dB = log10(double(effect&0xff)/64.)*20;
 							
-							double lastVolume = 1.;
+							double lastVolume = n.amplitudeDB;
 							if(n.keyframes.size() > 0) lastVolume = n.keyframes.back().amplitudeDB;
 							
 							n.keyframes.push_back({double(ps.curRowAbs-n.start.absRow), lastVolume, 0.});
-							n.keyframes.push_back({double(ps.curRowAbs-n.start.absRow), dB-n.amplitudeDB, 0.});
-							//fprintf(stderr, "KEYFRAME: %f\n", dB);
+							n.keyframes.push_back({double(ps.curRowAbs-n.start.absRow), dB, 0.});
+						}
+						// volume slide
+						if((effect & 0xFF0) == 0xEA0) {
+							int amount = effect&0xf;
+							double lastVolume = n.amplitudeDB;
+							if(n.keyframes.size() > 0) lastVolume = n.keyframes.back().amplitudeDB;
+							
+							double amplitude = pow(10, lastVolume/20.) * 64.;
+							amplitude += amount;
+							
+							double dB = log10(amplitude/64.)*20;
+							
+							n.keyframes.push_back({double(ps.curRowAbs-n.start.absRow), dB, 0.});
 						}
 					}
 				}

@@ -35,28 +35,44 @@ namespace ytpmv {
 		// nothing to do
 	}
 	
-	AudioSegment::AudioSegment(const Note& n, const Instrument& ins, double bpm) {
+	AudioSegment::AudioSegment() {
+		for(int k=0; k<CHANNELS; k++)
+			amplitude[k] = 1.;
+	}
+	AudioSegment::AudioSegment(const Note& n, const Instrument& ins, double bpm): AudioSegment() {
 		startSeconds = n.start.toSeconds(bpm);
 		endSeconds = n.end.toSeconds(bpm);
 		pitch = pow(2,(n.pitchSemitones + ins.tuningSemitones)/12.);
-		if(pitch<1.) tempo = pitch;
-		else tempo = sqrt(pitch);
-		for(int k=0; k<CHANNELS; k++)
-			amplitude[k] = pow(10,n.amplitudeDB/20.);
+		tempo = pitch;
 		sampleData = ins.sampleData.data();
 		sampleLength = ins.sampleData.length();
+		addInitialKeyFrame(n);
 		copyKeyFrames(n.keyframes, pow(2,ins.tuningSemitones/12.), bpm);
 	}
-	AudioSegment::AudioSegment(const Note& n, const AudioSource* src, double bpm) {
+	AudioSegment::AudioSegment(const Note& n, const AudioSource* src, double bpm): AudioSegment() {
 		startSeconds = n.start.toSeconds(bpm);
 		endSeconds = n.end.toSeconds(bpm);
 		pitch = pow(2,n.pitchSemitones/12.) * src->pitch;
 		tempo = src->tempo;
-		for(int k=0; k<CHANNELS; k++)
-			amplitude[k] = pow(10,n.amplitudeDB/20.);
 		sampleData = src->sample.data();
 		sampleLength = src->sample.length();
+		addInitialKeyFrame(n);
 		copyKeyFrames(n.keyframes, src->pitch, bpm);
+	}
+	AudioSegment::AudioSegment(const Note& n, const Source* src, double bpm):
+			AudioSegment(n,src->audio,bpm) {
+		pitch *= src->pitch;
+		tempo *= src->tempo;
+		for(int k=0; k<CHANNELS; k++)
+			amplitude[k] *= pow(10,src->amplitudeDB/20.);
+	}
+	void AudioSegment::addInitialKeyFrame(const Note& n) {
+		AudioKeyFrame kf1;
+		kf1.relTimeSeconds = 0.;
+		for(int k=0; k<CHANNELS; k++)
+			kf1.amplitude[k] = pow(10,n.amplitudeDB/20.);
+		kf1.pitch = 1.;
+		keyframes.push_back(kf1);
 	}
 	void AudioSegment::copyKeyFrames(const vector<NoteKeyFrame>& kfs, double pitch, double bpm) {
 		for(const NoteKeyFrame& kf: kfs) {
@@ -178,6 +194,10 @@ namespace ytpmv {
 		vertexVarSizes[0] = 3;
 		vertexVarSizes[1] = 2;
 		vertexVarSizes[2] = 0;
+	}
+	VideoSegment::VideoSegment(const Note& n, Source* src, double bpm):
+		VideoSegment(n, src->video, bpm) {
+		speed *= src->tempo;
 	}
 	
 	std::string get_file_contents(const char *filename) {

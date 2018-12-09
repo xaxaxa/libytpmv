@@ -19,16 +19,17 @@ namespace ytpmv {
 	}
 	
 	bool loadAudioOnly = false;
+	string sourceDir;
 	map<string, Source> sources;
 	void loadSource(Source& src, string audioFile, string videoFile,
 					double audioPitch, double audioTempo, double videoSpeed) {
 		if(audioFile != "") {
-			src.audio = loadAudio(audioFile.c_str(), 44100);
+			src.audio = loadAudio((sourceDir + audioFile).c_str(), 44100);
 			src.audio->pitch *= audioPitch;
 			src.audio->tempo *= audioTempo;
 		}
 		if(videoFile != "" && !loadAudioOnly) {
-			src.video = new MemoryVideoSource(videoFile);
+			src.video = new MemoryVideoSource(sourceDir + videoFile);
 			src.video->speed *= videoSpeed;
 		}
 	}
@@ -37,6 +38,37 @@ namespace ytpmv {
 		auto& src = sources[name];
 		src.name = name;
 		loadSource(src, audioFile, videoFile, audioPitch, audioTempo, videoSpeed);
+		return &src;
+	}
+	void setSourceDir(string sourceDir) {
+		ytpmv::sourceDir = sourceDir;
+	}
+	Source* addSource2(string videoFile, double pitch, double tempo, double volumeDB, double offsetSeconds, string audioFile) {
+		string name = videoFile;
+		if(audioFile == "") {
+			audioFile = videoFile;
+			int ind = videoFile.find_last_of(".");
+			if(ind != string::npos) {
+				string af = videoFile.substr(0, ind) + ".wav";
+				string afPath = sourceDir + af;
+				if(access(afPath.c_str(), F_OK) == 0)
+					audioFile = af;
+				name = videoFile.substr(0, ind);
+			}
+		}
+		Source* tmp = addSource(name, audioFile, videoFile, pitch, tempo, tempo);
+		tmp->amplitudeDB += volumeDB;
+		trimSource(name, offsetSeconds);
+		return tmp;
+	}
+	Source* dupSource(string fromName, string toName, double pitch, double tempo, double volumeDB) {
+		Source* tmp = getSource(fromName);
+		auto& src = sources[toName];
+		src = *tmp;
+		src.name = toName;
+		src.pitch *= pitch;
+		src.tempo *= tempo;
+		src.amplitudeDB += volumeDB;
 		return &src;
 	}
 	Source* getSource(string name) {

@@ -62,8 +62,9 @@ namespace ytpmv {
 	struct NoteKeyFrame {
 		double relTimeRows;
 		
-		// relative to note amplitude and pitch
+		// absolute amplitude
 		double amplitudeDB;
+		// relative to note pitch
 		double pitchSemitones;
 	};
 	// represents one note from mod/midi file
@@ -74,6 +75,10 @@ namespace ytpmv {
 		int instrument;
 		double pitchSemitones; // semitones relative to the sample note (a pitch of 0 means play the sample at original speed)
 		double amplitudeDB; // in dB; 0 is default amplitude
+		
+		// chord info; this may come from the 0xx (arpeggio) command
+		double chord1,chord2,chord3; // semitones relative to the root note
+		int chordCount = 0;	// how many tones there are above the root note
 		
 		// does not include the initial keyframe
 		vector<NoteKeyFrame> keyframes;
@@ -154,6 +159,7 @@ namespace ytpmv {
 	class Source {
 	public:
 		string name;
+		double pitch = 1., tempo = 1., amplitudeDB = 0.;
 		AudioSource* audio = nullptr;
 		VideoSource* video = nullptr;
 		bool hasAudio() { return audio != nullptr; }
@@ -180,10 +186,12 @@ namespace ytpmv {
 		
 		vector<AudioKeyFrame> keyframes;
 		
-		AudioSegment() {}
+		AudioSegment();
 		AudioSegment(const Note& n, const Instrument& ins, double bpm);
 		AudioSegment(const Note& n, const AudioSource* src, double bpm);
+		AudioSegment(const Note& n, const Source* src, double bpm);
 		
+		void addInitialKeyFrame(const Note& n);
 		void copyKeyFrames(const vector<NoteKeyFrame>& kfs, double pitch, double bpm);
 		
 		double durationSeconds() const {
@@ -270,6 +278,8 @@ namespace ytpmv {
 		// create a video segment with the timing info from n, and
 		// using source src.
 		VideoSegment(const Note& n, VideoSource* src, double bpm);
+		VideoSegment(const Note& n, Source* src, double bpm);
+		
 		// create a video segment using source src.
 		VideoSegment(VideoSource* src, double startSeconds, double endSeconds);
 		
