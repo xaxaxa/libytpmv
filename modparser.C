@@ -114,6 +114,14 @@ namespace ytpmv {
 					n.instrument = instrumentID;
 					n.pitchSemitones = semitones;
 					n.amplitudeDB = dB;
+					
+					if((effect & 0xf00) == 0x000 && effect != 0) {
+						// arpeggio
+						n.chordCount = 2;
+						n.chord1 = (effect&0xf0)>>8;
+						n.chord2 = (effect&0xf);
+					}
+					
 					ps.activeNotes.at(channel) = ps.outNotes->size();
 					ps.outNotes->push_back(n);
 					ps.lastInstrument.at(channel) = instrumentID;
