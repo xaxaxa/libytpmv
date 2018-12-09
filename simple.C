@@ -125,7 +125,7 @@ namespace ytpmv {
 		// that is, getTimeMicros() - offsetClockTimeMicros will return the current
 		// playback time in microseconds
 		volatile uint64_t offsetClockTimeMicros;
-		int audioLatencyMicros = 100000;
+		int audioLatencyMicros = 50000;
 		
 		
 		/*
@@ -214,6 +214,10 @@ namespace ytpmv {
 			int64_t t = int64_t(getTimeMicros() - offs);
 			t += renderDelay;
 			t -= (int64_t)audioLatencyMicros;
+			
+			// FIXME(xaxaxa): there is about 30ms unexplained video latency
+			// between time of buffer swap and time of display.
+			t += 30000;
 			return double(t)*1e-6;
 		}
 		void videoThread() {
@@ -343,6 +347,8 @@ namespace ytpmv {
 		double playStart = audioStart;
 		if(videoStart < playStart) playStart = videoStart;
 		
+		PRNT(0, "playStart = %f, audioStart = %f, videoStart = %f\n", playStart, audioStart, videoStart);
+		
 		renderInfo inf;
 		assert(pipe(inf.audioPipe) == 0);
 		assert(pipe(inf.videoPipe) == 0);
@@ -354,7 +360,7 @@ namespace ytpmv {
 		inf.fps = 30;
 		inf.srate = 44100;
 		inf.audioPadding = audioStart - playStart;
-		
+		inf.audioPadding += 0.03;
 		
 		pthread_t th1, th2;
 		
