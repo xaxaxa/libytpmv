@@ -406,9 +406,12 @@ namespace ytpmv {
 	void encodeVideo(int audioFD, int videoFD, int w, int h, double fps, int srate, int outFD) {
 		string desc = string("fdsrc fd=") + to_string(videoFD) +
 					" ! rawvideoparse use-sink-caps=false width="+to_string(w)+" height="+to_string(h)+" framerate="+to_string((int)fps)+"/1 format=7"
-					" ! videoconvert ! x264enc bitrate=8192 ! mp4mux fragment-duration=1000 streamable=true name=mux ! fdsink fd=" + to_string(outFD)
+					" ! videoconvert ! x264enc bitrate=16384 qp-min=18 qp-max=36 speed-preset=slow"
+					" ! video/x-h264, profile=baseline"
+					" ! mp4mux fragment-duration=1000 streamable=true faststart=true name=mux ! fdsink fd=" + to_string(outFD)
 					+ " fdsrc name=fdsrc_audio fd=" + to_string(audioFD) + 
-					" ! rawaudioparse pcm-format=GST_AUDIO_FORMAT_S16LE num-channels=2 interleaved=true sample-rate="+to_string(srate)+" ! audioconvert ! lamemp3enc ! mux.";
+					" ! rawaudioparse pcm-format=GST_AUDIO_FORMAT_S16LE num-channels=2 interleaved=true sample-rate="+to_string(srate) + 
+					" ! audioconvert ! lamemp3enc target=bitrate bitrate=320 ! mux.";
 		PRNT(0, "%s\n", desc.c_str());
 		GError* err = nullptr;
 		GstElement* pipeline = gst_parse_launch(desc.c_str(), &err);
