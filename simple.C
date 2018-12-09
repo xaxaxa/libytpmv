@@ -357,7 +357,9 @@ namespace ytpmv {
 		inf.settings = &settings;
 		inf.w = 1920;
 		inf.h = 1080;
-		inf.fps = 30;
+		/*inf.w = 1280;
+		inf.h = 720;*/
+		inf.fps = 60;
 		inf.srate = 44100;
 		inf.audioPadding = audioStart - playStart;
 		inf.audioPadding += 0.03;
